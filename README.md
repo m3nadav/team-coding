@@ -18,6 +18,8 @@ Share your Claude Code session with a friend — real-time collaboration for AI 
 
 ## ⚡ Quick Start
 
+> Assumes you already have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed.
+
 ```bash
 # Start a duet session (run from your terminal, NOT inside Claude Code)
 npx claude-duet host --name Alice
