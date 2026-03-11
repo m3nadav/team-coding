@@ -19,6 +19,8 @@ export class TerminalUI {
   private keystrokeHandler?: () => void;
   private typingUser?: string;
   private claudeStreaming = false;
+  private claudeProcessing = false;
+  private cursorPos = 0;
 
   constructor(options: TerminalUIOptions) {
     this.options = options;
@@ -33,7 +35,7 @@ export class TerminalUI {
   }
 
   private showInputPrompt(): void {
-    process.stdout.write(pc.gray("⟩ "));
+    process.stdout.write(pc.gray("\u27e9 "));
   }
 
   private getSuggestions(): Array<{ trigger: string; completion: string; display: string }> {
@@ -90,21 +92,18 @@ export class TerminalUI {
     const lower = input.toLowerCase();
     const match = this.getSuggestions().find((s) => s.trigger === lower);
     if (!match) return null;
-    // Ghost text is the part not yet typed
     const ghost = match.completion.slice(input.length);
     if (!ghost) return null;
     return { completion: match.completion, ghost };
   }
 
   private redrawLine(): void {
-    // Clear current line and rewrite
     process.stdout.write(`\r\x1b[2K`);
-    process.stdout.write(pc.gray("⟩ "));
+    process.stdout.write(pc.gray("\u27e9 "));
     process.stdout.write(pc.white(this.lineBuffer));
 
-    // Show ghost suggestion or typing indicator (mutually exclusive)
     const suggestion = this.findSuggestion(this.lineBuffer);
-    if (suggestion) {
+    if (suggestion && this.cursorPos === this.lineBuffer.length) {
       process.stdout.write(pc.dim(suggestion.ghost));
       process.stdout.write(`\x1b[${suggestion.ghost.length}D`);
     } else if (this.typingUser && !this.lineBuffer) {
@@ -112,12 +111,26 @@ export class TerminalUI {
       process.stdout.write(pc.gray(pc.italic(indicator)));
       process.stdout.write(`\x1b[${indicator.length}D`);
     }
+
+    const charsAfterCursor = this.lineBuffer.length - this.cursorPos;
+    if (charsAfterCursor > 0) {
+      process.stdout.write(`\x1b[${charsAfterCursor}D`);
+    }
+  }
+
+  private clearInputLine(): void {
+    if (!this.rawMode) return;
+    process.stdout.write(`\r\x1b[2K`);
+  }
+
+  private restoreInputLine(): void {
+    if (!this.rawMode || this.claudeProcessing) return;
+    this.redrawLine();
   }
 
   startInputLoop(): void {
     if (this.rawMode) return;
 
-    // Use raw mode for inline ghost suggestions if TTY
     if (process.stdin.isTTY) {
       this.rawMode = true;
       process.stdin.setRawMode(true);
@@ -139,11 +152,26 @@ export class TerminalUI {
             return;
           }
 
+          // Ctrl+A — move to start of line
+          if (code === 1) {
+            this.cursorPos = 0;
+            this.redrawLine();
+            continue;
+          }
+
+          // Ctrl+E — move to end of line
+          if (code === 5) {
+            this.cursorPos = this.lineBuffer.length;
+            this.redrawLine();
+            continue;
+          }
+
           // Enter
           if (code === 13 || code === 10) {
-            process.stdout.write(`\r\x1b[2K`); // clear typed input line
+            process.stdout.write(`\r\x1b[2K`);
             const trimmed = this.lineBuffer.trim();
             this.lineBuffer = "";
+            this.cursorPos = 0;
             if (trimmed && this.inputHandler) {
               this.inputHandler(trimmed);
             }
@@ -151,38 +179,77 @@ export class TerminalUI {
             continue;
           }
 
-          // Tab or Right arrow → accept suggestion
-          if (code === 9 || (code === 27 && str[i + 1] === "[" && str[i + 2] === "C")) {
+          // Tab → accept suggestion
+          if (code === 9) {
             const suggestion = this.findSuggestion(this.lineBuffer);
             if (suggestion) {
               this.lineBuffer = suggestion.completion;
+              this.cursorPos = this.lineBuffer.length;
               this.redrawLine();
             }
-            if (code === 27) i += 2; // skip escape sequence
             continue;
           }
 
           // Backspace
           if (code === 127 || code === 8) {
-            if (this.lineBuffer.length > 0) {
-              this.lineBuffer = this.lineBuffer.slice(0, -1);
+            if (this.cursorPos > 0) {
+              this.lineBuffer = this.lineBuffer.slice(0, this.cursorPos - 1) + this.lineBuffer.slice(this.cursorPos);
+              this.cursorPos--;
               this.redrawLine();
             }
             continue;
           }
 
-          // Escape sequences (arrows etc.) — skip
+          // Escape sequences (arrows, home, end, delete)
           if (code === 27) {
-            // Consume the rest of the escape sequence
             if (str[i + 1] === "[") {
-              i += 2; // skip ESC [ X
+              const seq = str[i + 2];
+              if (seq === "C") {
+                // Right arrow — accept suggestion at end, or move cursor
+                const suggestion = this.findSuggestion(this.lineBuffer);
+                if (suggestion && this.cursorPos === this.lineBuffer.length) {
+                  this.lineBuffer = suggestion.completion;
+                  this.cursorPos = this.lineBuffer.length;
+                } else if (this.cursorPos < this.lineBuffer.length) {
+                  this.cursorPos++;
+                }
+                this.redrawLine();
+                i += 2;
+              } else if (seq === "D") {
+                // Left arrow
+                if (this.cursorPos > 0) {
+                  this.cursorPos--;
+                  this.redrawLine();
+                }
+                i += 2;
+              } else if (seq === "H") {
+                // Home
+                this.cursorPos = 0;
+                this.redrawLine();
+                i += 2;
+              } else if (seq === "F") {
+                // End
+                this.cursorPos = this.lineBuffer.length;
+                this.redrawLine();
+                i += 2;
+              } else if (seq === "3" && str[i + 3] === "~") {
+                // Delete key
+                if (this.cursorPos < this.lineBuffer.length) {
+                  this.lineBuffer = this.lineBuffer.slice(0, this.cursorPos) + this.lineBuffer.slice(this.cursorPos + 1);
+                  this.redrawLine();
+                }
+                i += 3;
+              } else {
+                i += 2;
+              }
             }
             continue;
           }
 
           // Regular printable character
           if (code >= 32) {
-            this.lineBuffer += ch;
+            this.lineBuffer = this.lineBuffer.slice(0, this.cursorPos) + ch + this.lineBuffer.slice(this.cursorPos);
+            this.cursorPos++;
             this.redrawLine();
             this.keystrokeHandler?.();
           }
@@ -191,7 +258,6 @@ export class TerminalUI {
 
       process.stdin.on("data", this.rawHandler as any);
     } else {
-      // Non-TTY fallback (piped input) — use readline
       this.rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -217,9 +283,9 @@ export class TerminalUI {
   }
 
   applySessionBackground(): void {
-    if (this.background) return; // Already applied
+    if (this.background) return;
     this.background = pickSessionBackground();
-    process.stdout.write("\x1b[2J\x1b[H"); // Clear screen + cursor to top
+    process.stdout.write("\x1b[2J\x1b[H");
     process.stdout.write(applyBackground(this.background));
   }
 
@@ -228,58 +294,60 @@ export class TerminalUI {
 
     const violet = (s: string) => pc.magenta(s);
     const dim = (s: string) => this.sessionText(s);
-    const bar = violet("  │");
+    const bar = violet("  \u2502");
 
     console.log("");
-    console.log(violet("  ┌─────────────────────────────────────────────┐"));
-    console.log(`${bar}  ${pc.bold(pc.cyan("✦"))} ${pc.bold(pc.white("claude-duet"))} ${dim("session started")}${" ".repeat(13)}${violet("│")}`);
-    console.log(violet("  └─────────────────────────────────────────────┘"));
+    console.log(violet("  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510"));
+    console.log(`${bar}  ${pc.bold(pc.cyan("\u2726"))} ${pc.bold(pc.white("claude-duet"))} ${dim("session started")}${" ".repeat(13)}${violet("\u2502")}`);
+    console.log(violet("  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518"));
     console.log("");
 
     if (joinCmd) {
-      // Custom join command (P2P or other)
       console.log(`  ${dim("Send your partner this command to join:")}`);
       console.log("");
-      console.log(`  ${pc.green("▶")} ${pc.bold(pc.green(joinCmd))}`);
+      console.log(`  ${pc.green("\u25b6")} ${pc.bold(pc.green(joinCmd))}`);
     } else if (connectUrl) {
       const cmd = `npx claude-duet join ${sessionCode} --password ${password} --url ${connectUrl}`;
       console.log(`  ${dim("Send your partner this command to join:")}`);
       console.log("");
-      console.log(`  ${pc.green("▶")} ${pc.bold(pc.green(cmd))}`);
+      console.log(`  ${pc.green("\u25b6")} ${pc.bold(pc.green(cmd))}`);
     } else {
-      console.log(`  ${pc.cyan("●")} Session code  ${pc.bold(pc.white(sessionCode))}`);
-      console.log(`  ${pc.cyan("●")} Password      ${pc.bold(pc.white(password))}`);
+      console.log(`  ${pc.cyan("\u25cf")} Session code  ${pc.bold(pc.white(sessionCode))}`);
+      console.log(`  ${pc.cyan("\u25cf")} Password      ${pc.bold(pc.white(password))}`);
       console.log("");
       console.log(`  ${dim("Share these with your partner to join.")}`);
     }
 
     console.log("");
-    console.log(dim("  ─────────────────────────────────────────────"));
+    console.log(dim("  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"));
     console.log("");
     this.showInputPrompt();
   }
 
   showSystem(message: string): void {
+    this.clearInputLine();
     console.log(this.sessionText(`  ${message}`));
+    this.restoreInputLine();
   }
 
   showError(message: string): void {
+    this.clearInputLine();
     console.error(pc.red(`  Error: ${message}`));
+    this.restoreInputLine();
   }
 
   showUserPrompt(user: string, text: string, role: "host" | "guest", mode: "chat" | "claude" = "chat"): void {
+    this.clearInputLine();
     const isSelf = role === this.options.role;
     const partnerColor = role === "host" ? pc.cyan : pc.yellow;
 
     if (isSelf) {
-      // Self messages — subtle since you just typed it
       if (mode === "claude") {
         console.log(`\n${pc.dim("you \u2192 \u2726 Claude:")}`);
       } else {
         console.log(`\n${pc.dim("you:")}`);
       }
     } else {
-      // Partner messages — prominent with name and color
       if (mode === "claude") {
         console.log(`\n${pc.bold(partnerColor(user))} ${pc.dim("\u2192 \u2726 Claude:")}`);
       } else {
@@ -287,14 +355,19 @@ export class TerminalUI {
       }
     }
     console.log(`  ${this.background ? pc.white(text) : text}`);
+    console.log("");
+    this.restoreInputLine();
   }
 
   showClaudeThinking(): void {
+    this.clearInputLine();
     this.claudeStreaming = false;
+    this.claudeProcessing = true;
     console.log(`\n  ${this.claudeStar()} ${pc.dim("Claude is thinking...")}`);
   }
 
   showApprovalStatus(status: "pending" | "approved" | "rejected"): void {
+    this.clearInputLine();
     switch (status) {
       case "pending":
         console.log(this.sessionText("  \u23f3 Waiting for host to approve..."));
@@ -306,13 +379,17 @@ export class TerminalUI {
         console.log(pc.red("  \u274c Host rejected your prompt"));
         break;
     }
+    this.restoreInputLine();
   }
 
   showHint(text: string): void {
+    this.clearInputLine();
     console.log(pc.gray(pc.italic(`  ${text}`)));
+    this.restoreInputLine();
   }
 
   showSessionSummary(summary: { duration: string; messageCount: number; cost?: number }): void {
+    this.clearInputLine();
     console.log("");
     console.log(pc.bold(`  ${this.claudeStar()} Session ended`));
     console.log(this.sessionText(`  Duration: ${summary.duration}`));
@@ -325,6 +402,7 @@ export class TerminalUI {
 
   showStreamChunk(text: string): void {
     if (!this.claudeStreaming) {
+      this.clearInputLine();
       this.claudeStreaming = true;
       process.stdout.write(`\n  ${this.claudeStar()} ${pc.bold("\x1b[38;5;208mClaude\x1b[0m")}\n`);
     }
@@ -332,36 +410,44 @@ export class TerminalUI {
   }
 
   showToolUse(tool: string, _input: Record<string, unknown>): void {
+    this.clearInputLine();
     console.log(pc.dim(`  \x1b[38;5;208m\u25b8\x1b[0m ${pc.dim(tool)}`));
   }
 
   showToolResult(tool: string, output: string): void {
+    this.clearInputLine();
     console.log(pc.dim(`  \x1b[38;5;208m\u25c2\x1b[0m ${pc.dim(`${tool}: ${output.slice(0, 100)}`)}`));
   }
 
   showTurnComplete(cost: number, durationMs: number): void {
+    this.clearInputLine();
     this.claudeStreaming = false;
+    this.claudeProcessing = false;
     console.log(pc.dim(`\n  ${this.claudeStar()} $${cost.toFixed(4)} \u00b7 ${(durationMs / 1000).toFixed(1)}s`));
+    this.restoreInputLine();
   }
 
   showPartnerJoined(user: string): void {
+    this.clearInputLine();
     console.log(pc.green(`\n  \u2726 ${user} joined the session`));
+    this.restoreInputLine();
   }
 
   showPartnerLeft(user: string): void {
+    this.clearInputLine();
     console.log(pc.yellow(`\n  \u2726 ${user} left the session`));
+    this.restoreInputLine();
   }
 
   showApprovalRequest(promptId: string, user: string, text: string): void {
+    this.clearInputLine();
     console.log("");
-    console.log(pc.yellow(`  \u250c\u2500 ${user} \u2192 Claude ${"─".repeat(Math.max(0, 35 - user.length))}\u2510`));
+    console.log(pc.yellow(`  \u250c\u2500 ${user} \u2192 Claude ${"\u2500".repeat(Math.max(0, 35 - user.length))}\u2510`));
     console.log(pc.yellow(`  \u2502  "${text.length > 40 ? text.slice(0, 37) + "..." : text}"${" ".repeat(Math.max(0, 40 - Math.min(text.length, 40)))}\u2502`));
     console.log(pc.yellow(`  \u2502  ${pc.bold("[y]")} approve  ${pc.bold("[n]")} reject${" ".repeat(22)}\u2502`));
-    console.log(pc.yellow(`  \u2514${"─".repeat(44)}\u2518`));
+    console.log(pc.yellow(`  \u2514${"\u2500".repeat(44)}\u2518`));
 
     if (process.stdin.isTTY) {
-      // If we're in raw mode, temporarily detach the main input handler
-      // so the approval keypress handler can take over
       if (this.rawMode && this.rawHandler) {
         process.stdin.removeListener("data", this.rawHandler as any);
       } else {
@@ -375,7 +461,6 @@ export class TerminalUI {
         process.stdin.removeListener("data", handler);
 
         if (this.rawMode && this.rawHandler) {
-          // Re-attach the main raw input handler
           process.stdin.on("data", this.rawHandler as any);
           this.showInputPrompt();
         } else {
@@ -393,7 +478,6 @@ export class TerminalUI {
       };
       process.stdin.on("data", handler);
     } else {
-      // Non-TTY (e.g., piped input from test script) — auto-approve
       if (this.approvalHandler) this.approvalHandler(promptId, true);
     }
   }
@@ -404,7 +488,6 @@ export class TerminalUI {
     } else if (this.typingUser === user) {
       this.typingUser = undefined;
     }
-    // Redraw prompt to show/hide inline indicator
     if (this.rawMode) {
       this.redrawLine();
     }

@@ -155,7 +155,7 @@ export class ClaudeDuetServer extends EventEmitter {
     }
 
     if (isTypingMessage(msg)) {
-      this.broadcast({
+      this.emit("server_message", {
         type: "typing_indicator",
         user: this.guestUser!,
         isTyping: msg.isTyping,
@@ -215,7 +215,7 @@ export class ClaudeDuetServer extends EventEmitter {
     }
 
     if (isTypingMessage(msg)) {
-      this.broadcast({
+      this.emit("server_message", {
         type: "typing_indicator",
         user: this.guestUser!,
         isTyping: msg.isTyping,

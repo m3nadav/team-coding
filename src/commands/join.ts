@@ -171,7 +171,9 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         ui.showTurnComplete(msg.cost, msg.durationMs);
         break;
       case "typing_indicator":
-        ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
+        if ((msg as any).user !== options.name) {
+          ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
+        }
         break;
       case "notice":
         ui.showSystem(msg.message);

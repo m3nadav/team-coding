@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { hostCommand } from "./commands/host.js";
-import { joinCommand } from "./commands/join.js";
-import { startRelayServer } from "./relay-server.js";
-import { configShowCommand, configSetCommand, configGetCommand, configPathCommand } from "./commands/config.js";
 import { loadConfig } from "./config.js";
 
 const program = new Command();
@@ -25,7 +21,9 @@ program
   .option("-c, --continue", "resume most recent Claude Code session")
   .option("--resume <id>", "resume a specific Claude Code session by ID")
   .option("--permission-mode <mode>", "permission mode: auto (default) or interactive")
-  .action((options) => {
+  .action(async (options) => {
+    console.log("  Starting session...");
+    const { hostCommand } = await import("./commands/host.js");
     const config = loadConfig();
     const tunnelFlag = options.tunnel === true ? "localtunnel" : options.tunnel;
     const tunnel = tunnelFlag || config.tunnel;
@@ -47,11 +45,13 @@ program
   .option("-n, --name <name>", "your display name", process.env.USER || "guest")
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
-  .action((sessionCodeOrOffer, options) => {
+  .action(async (sessionCodeOrOffer, options) => {
     if (!options.password) {
       console.error("Error: --password is required");
       process.exit(1);
     }
+    console.log("  Connecting...");
+    const { joinCommand } = await import("./commands/join.js");
     const config = loadConfig();
     joinCommand(sessionCodeOrOffer, {
       name: options.name !== (process.env.USER || "guest") ? options.name : (config.name || options.name),
@@ -64,29 +64,42 @@ program
   .command("relay")
   .description("Run a self-hosted relay server for remote claude-duet sessions")
   .option("-p, --port <port>", "relay server port", "9877")
-  .action((options) => {
+  .action(async (options) => {
+    const { startRelayServer } = await import("./relay-server.js");
     startRelayServer(parseInt(options.port, 10));
   });
 
 const configCmd = program
   .command("config")
   .description("View and manage claude-duet configuration")
-  .action(() => configShowCommand());
+  .action(async () => {
+    const { configShowCommand } = await import("./commands/config.js");
+    configShowCommand();
+  });
 
 configCmd
   .command("set <key> <value>")
   .description("Set a config value")
   .option("--project", "save to project config (.claude-duet.json)")
-  .action((key, value, options) => configSetCommand(key, value, options));
+  .action(async (key, value, options) => {
+    const { configSetCommand } = await import("./commands/config.js");
+    configSetCommand(key, value, options);
+  });
 
 configCmd
   .command("get <key>")
   .description("Get a config value")
-  .action((key) => configGetCommand(key));
+  .action(async (key) => {
+    const { configGetCommand } = await import("./commands/config.js");
+    configGetCommand(key);
+  });
 
 configCmd
   .command("path")
   .description("Show config file paths")
-  .action(() => configPathCommand());
+  .action(async () => {
+    const { configPathCommand } = await import("./commands/config.js");
+    configPathCommand();
+  });
 
 program.parse();

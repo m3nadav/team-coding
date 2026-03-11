@@ -334,7 +334,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       ui.showApprovalRequest(msg.promptId, msg.user, msg.text);
     }
     if (msg.type === "typing_indicator") {
-      ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
+      if ((msg as any).user !== options.name) {
+        ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
+      }
     }
   });
 
