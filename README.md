@@ -145,7 +145,7 @@ Project-level config (`.claude-duet.json`) overrides user config. CLI flags over
 
 ## Responsible Use
 
-claude-duet is built for legitimate pair programming and collaboration between developers. Please use it responsibly and in accordance with [Anthropic's Usage Policy](https://www.anthropic.com/policies/usage-policy) and your own API terms.
+claude-duet is built for legitimate pair programming and collaboration between developers. Please use it responsibly and in accordance with [Anthropic's Usage Policy](https://www.anthropic.com/legal/aup) and your own API terms.
 
 ## ⌥ Development
 
