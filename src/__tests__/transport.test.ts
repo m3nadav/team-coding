@@ -1,14 +1,14 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { TeamClaudeServer } from "../server.js";
-import { TeamClaudeClient } from "../client.js";
+import { TeamCodingServer } from "../server.js";
+import { TeamCodingClient } from "../client.js";
 import { MockTransport } from "./mock-transport.js";
 
 const TEST_PASSWORD = "test1234";
 const TEST_SESSION_CODE = "cd-test1234";
 
 describe("transport-based server + client", () => {
-  let server: TeamClaudeServer;
-  let client: TeamClaudeClient;
+  let server: TeamCodingServer;
+  let client: TeamCodingClient;
 
   afterEach(async () => {
     if (client) await client.disconnect().catch(() => {});
@@ -16,7 +16,7 @@ describe("transport-based server + client", () => {
   });
 
   it("guest connects via transport and joins", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -25,7 +25,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     const result = await client.connectTransport(
       guestSide,
       "benji",
@@ -38,7 +38,7 @@ describe("transport-based server + client", () => {
   });
 
   it("rejects wrong password via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -47,14 +47,14 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await expect(
       client.connectTransport(guestSide, "benji", "wrongpass", TEST_SESSION_CODE, 500),
     ).rejects.toThrow();
   });
 
   it("broadcast reaches guest via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -63,7 +63,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const messages: Record<string, unknown>[] = [];
@@ -81,7 +81,7 @@ describe("transport-based server + client", () => {
   });
 
   it("guest sends prompt via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -90,7 +90,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const prompts: Record<string, unknown>[] = [];
@@ -105,7 +105,7 @@ describe("transport-based server + client", () => {
   });
 
   it("guest chat via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -114,7 +114,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const chatEvents: Record<string, unknown>[] = [];
@@ -129,7 +129,7 @@ describe("transport-based server + client", () => {
   });
 
   it("emits guest_joined and guest_left via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -143,7 +143,7 @@ describe("transport-based server + client", () => {
     server.on("participant_joined", (user: string) => joined.push(user));
     server.on("participant_left", () => left.push(true));
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     expect(joined).toEqual(["benji"]);
@@ -157,7 +157,7 @@ describe("transport-based server + client", () => {
   });
 
   it("kickGuest works via transport", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -166,7 +166,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const disconnected: boolean[] = [];
@@ -179,7 +179,7 @@ describe("transport-based server + client", () => {
   });
 
   it("overrides user field on guest messages (anti-spoofing)", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -188,7 +188,7 @@ describe("transport-based server + client", () => {
     const [hostSide, guestSide] = MockTransport.createPair();
     server.attachTransport(hostSide);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const prompts: Record<string, unknown>[] = [];

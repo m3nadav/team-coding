@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PromptRouter } from "../router.js";
 import { ClaudeBridge } from "../claude.js";
-import { TeamClaudeServer } from "../server.js";
+import { TeamCodingServer } from "../server.js";
 import type { PromptMessage } from "../protocol.js";
 
 // Capture the event listener registered by PromptRouter on ClaudeBridge

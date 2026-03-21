@@ -70,7 +70,7 @@ export class ClaudeBridge extends EventEmitter {
 
     // Strip CLAUDECODE env var to bypass nesting protection.
     // This is safe: we're spawning a separate headless process, not nesting TUIs.
-    // Also needed when user exits Claude Code and runs team-claude in the same shell.
+    // Also needed when user exits Claude Code and runs team-coding in the same shell.
     const env = { ...process.env };
     delete env.CLAUDECODE;
 

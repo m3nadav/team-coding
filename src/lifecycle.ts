@@ -100,7 +100,7 @@ export class SessionLifecycle {
 
   private saveLog(summary: SessionSummary): void {
     try {
-      const dir = join(process.cwd(), ".team-claude", "sessions");
+      const dir = join(process.cwd(), ".team-coding", "sessions");
       mkdirSync(dir, { recursive: true });
       const content = [
         `Session: ${summary.sessionCode}`,

@@ -1,5 +1,5 @@
 import type { ClaudeBridge, ClaudeEvent } from "./claude.js";
-import type { TeamClaudeServer } from "./server.js";
+import type { TeamCodingServer } from "./server.js";
 import type { PromptMessage, ServerMessage } from "./protocol.js";
 
 interface RouterOptions {
@@ -25,14 +25,14 @@ interface QueuedPrompt {
 export class PromptRouter {
   private pending = new Map<string, PendingPrompt>();
   private claude: ClaudeBridge;
-  private server: TeamClaudeServer;
+  private server: TeamCodingServer;
   private options: RouterOptions;
   private chatHistory: ChatEntry[] = [];
   private lastClaudeResponseIndex = 0;
   private promptQueue: QueuedPrompt[] = [];
   private contextMode: "full" | "prompt-only" = "full";
 
-  constructor(claude: ClaudeBridge, server: TeamClaudeServer, options: RouterOptions) {
+  constructor(claude: ClaudeBridge, server: TeamCodingServer, options: RouterOptions) {
     this.claude = claude;
     this.server = server;
     this.options = options;

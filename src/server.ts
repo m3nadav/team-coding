@@ -30,7 +30,7 @@ const DEFAULT_MAX_PARTICIPANTS = 10;
 // Must be well under typical tunnel/proxy idle timeouts (localtunnel = 120s).
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
-export class TeamClaudeServer extends EventEmitter {
+export class TeamCodingServer extends EventEmitter {
   private wss?: WebSocketServer;
   private options: Required<ServerOptions>;
   private encryptionKey: Uint8Array;

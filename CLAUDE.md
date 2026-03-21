@@ -1,4 +1,4 @@
-# team-claude Development Guide
+# team-coding Development Guide
 
 ## Project Overview
 

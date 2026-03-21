@@ -13,7 +13,7 @@ describe("history", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = join(tmpdir(), `team-claude-test-${Date.now()}`);
+    tempDir = join(tmpdir(), `team-coding-test-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
   });
 

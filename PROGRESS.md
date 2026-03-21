@@ -1,4 +1,4 @@
-# team-claude Progress
+# team-coding Progress
 
 ## Status: Post-Phase 7 Polish (continued)
 

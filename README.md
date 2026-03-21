@@ -1,4 +1,4 @@
-# team-claude
+# team-coding
 
 Multi-participant collaborative coding sessions powered by Claude Code.
 
@@ -33,29 +33,29 @@ hello!              → group chat, everyone sees it
 
 ```bash
 # Host a session
-npx team-claude host --name alice
+npx team-coding host --name alice
 
 # Join a session
-npx team-claude join <session-code> --password <password> --name bob
+npx team-coding join <session-code> --password <password> --name bob
 
 # Join with your own private Claude
-npx team-claude join <session-code> --password <password> --name charlie --with-claude
+npx team-coding join <session-code> --password <password> --name charlie --with-claude
 ```
 
 ## CLI Reference
 
 ```bash
-team-claude host                           # Start a session (WebRTC P2P by default)
-team-claude host --tunnel cloudflare       # Remote access via Cloudflare tunnel
-team-claude host --tunnel localtunnel      # Remote access via localtunnel
-team-claude host --no-approval             # Trust mode — skip prompt review
-team-claude host --continue                # Resume most recent Claude Code session
-team-claude host --resume <id>             # Resume a specific session by ID
-team-claude host --max-participants 20     # Raise participant limit (default: 10)
-team-claude join <code> --password <pw>    # Join a session
-team-claude join <code> … --with-claude    # Join with a private local Claude
-team-claude relay                          # Run a self-hosted relay server
-team-claude config                         # View/manage saved configuration
+team-coding host                           # Start a session (WebRTC P2P by default)
+team-coding host --tunnel cloudflare       # Remote access via Cloudflare tunnel
+team-coding host --tunnel localtunnel      # Remote access via localtunnel
+team-coding host --no-approval             # Trust mode — skip prompt review
+team-coding host --continue                # Resume most recent Claude Code session
+team-coding host --resume <id>             # Resume a specific session by ID
+team-coding host --max-participants 20     # Raise participant limit (default: 10)
+team-coding join <code> --password <pw>    # Join a session
+team-coding join <code> … --with-claude    # Join with a private local Claude
+team-coding relay                          # Run a self-hosted relay server
+team-coding config                         # View/manage saved configuration
 ```
 
 ## In-Session Commands
@@ -116,8 +116,8 @@ team-claude config                         # View/manage saved configuration
 ## Development
 
 ```bash
-git clone https://github.com/m3nadav/team-claude.git
-cd team-claude
+git clone https://github.com/m3nadav/team-coding.git
+cd team-coding
 npm install
 npm run build   # compile TypeScript
 npm test        # run test suite (vitest)

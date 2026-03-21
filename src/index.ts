@@ -6,13 +6,13 @@ import { loadConfig } from "./config.js";
 const program = new Command();
 
 program
-  .name("team-claude")
+  .name("team-coding")
   .description("Multi-participant collaborative coding sessions — share a Claude Code session with your team")
   .version("0.1.0");
 
 program
   .command("host")
-  .description("Start a team-claude session as host")
+  .description("Start a team-coding session as host")
   .option("--max-participants <n>", "maximum number of participants (default: 10, ⚠ performance may degrade above 10)", "10")
   .option("-n, --name <name>", "your display name", process.env.USER || "host")
   .option("--no-approval", "disable approval mode (trust your partner)")
@@ -45,7 +45,7 @@ program
 
 program
   .command("join <session-code-or-offer>")
-  .description("Join an existing team-claude session (session code or P2P offer code)")
+  .description("Join an existing team-coding session (session code or P2P offer code)")
   .option("-n, --name <name>", "your display name")
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
@@ -70,7 +70,7 @@ program
 
 program
   .command("relay")
-  .description("Run a self-hosted relay server for remote team-claude sessions")
+  .description("Run a self-hosted relay server for remote team-coding sessions")
   .option("-p, --port <port>", "relay server port", "9877")
   .action(async (options) => {
     const { startRelayServer } = await import("./relay-server.js");
@@ -79,7 +79,7 @@ program
 
 const configCmd = program
   .command("config")
-  .description("View and manage team-claude configuration")
+  .description("View and manage team-coding configuration")
   .action(async () => {
     const { configShowCommand } = await import("./commands/config.js");
     configShowCommand();
@@ -88,7 +88,7 @@ const configCmd = program
 configCmd
   .command("set <key> <value>")
   .description("Set a config value")
-  .option("--project", "save to project config (.team-claude.json)")
+  .option("--project", "save to project config (.team-coding.json)")
   .action(async (key, value, options) => {
     const { configSetCommand } = await import("./commands/config.js");
     configSetCommand(key, value, options);

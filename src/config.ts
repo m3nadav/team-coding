@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
-export interface TeamClaudeConfig {
+export interface TeamCodingConfig {
   name?: string;
   approvalMode?: boolean;
   port?: number;
@@ -11,27 +11,27 @@ export interface TeamClaudeConfig {
   permissionMode?: "auto" | "interactive";
 }
 
-const CONFIG_KEYS: (keyof TeamClaudeConfig)[] = ["name", "approvalMode", "port", "tunnel", "relay", "permissionMode"];
+const CONFIG_KEYS: (keyof TeamCodingConfig)[] = ["name", "approvalMode", "port", "tunnel", "relay", "permissionMode"];
 
 export function getUserConfigPath(): string {
-  return join(homedir(), ".config", "team-claude", "config.json");
+  return join(homedir(), ".config", "team-coding", "config.json");
 }
 
 export function getProjectConfigPath(): string | null {
-  // Walk up from cwd to find .team-claude.json (stop at git root or filesystem root)
+  // Walk up from cwd to find .team-coding.json (stop at git root or filesystem root)
   let dir = process.cwd();
   while (true) {
-    const candidate = join(dir, ".team-claude.json");
+    const candidate = join(dir, ".team-coding.json");
     if (existsSync(candidate)) return candidate;
     // Stop at git root
-    if (existsSync(join(dir, ".git"))) return join(dir, ".team-claude.json"); // return path even if doesn't exist (for save)
+    if (existsSync(join(dir, ".git"))) return join(dir, ".team-coding.json"); // return path even if doesn't exist (for save)
     const parent = dirname(dir);
     if (parent === dir) return null; // filesystem root
     dir = parent;
   }
 }
 
-export function loadUserConfig(): Partial<TeamClaudeConfig> {
+export function loadUserConfig(): Partial<TeamCodingConfig> {
   try {
     const content = readFileSync(getUserConfigPath(), "utf-8");
     return JSON.parse(content);
@@ -40,7 +40,7 @@ export function loadUserConfig(): Partial<TeamClaudeConfig> {
   }
 }
 
-export function loadProjectConfig(): Partial<TeamClaudeConfig> {
+export function loadProjectConfig(): Partial<TeamCodingConfig> {
   const path = getProjectConfigPath();
   if (!path) return {};
   try {
@@ -51,14 +51,14 @@ export function loadProjectConfig(): Partial<TeamClaudeConfig> {
   }
 }
 
-export function loadConfig(): TeamClaudeConfig {
+export function loadConfig(): TeamCodingConfig {
   const user = loadUserConfig();
   const project = loadProjectConfig();
   // Project overrides user
   return { ...user, ...project };
 }
 
-export function saveUserConfig(config: Partial<TeamClaudeConfig>): void {
+export function saveUserConfig(config: Partial<TeamCodingConfig>): void {
   const path = getUserConfigPath();
   mkdirSync(dirname(path), { recursive: true });
   const existing = loadUserConfig();
@@ -66,15 +66,15 @@ export function saveUserConfig(config: Partial<TeamClaudeConfig>): void {
   writeFileSync(path, JSON.stringify(merged, null, 2) + "\n");
 }
 
-export function saveProjectConfig(config: Partial<TeamClaudeConfig>): void {
+export function saveProjectConfig(config: Partial<TeamCodingConfig>): void {
   const path = getProjectConfigPath();
   if (!path) {
     // Create at cwd
-    const fallback = join(process.cwd(), ".team-claude.json");
+    const fallback = join(process.cwd(), ".team-coding.json");
     writeFileSync(fallback, JSON.stringify(config, null, 2) + "\n");
     return;
   }
-  let existing: Partial<TeamClaudeConfig> = {};
+  let existing: Partial<TeamCodingConfig> = {};
   try {
     existing = JSON.parse(readFileSync(path, "utf-8"));
   } catch {}
@@ -86,11 +86,11 @@ export function getConfigPaths(): { user: string; project: string | null } {
   return { user: getUserConfigPath(), project: getProjectConfigPath() };
 }
 
-export function isValidConfigKey(key: string): key is keyof TeamClaudeConfig {
-  return CONFIG_KEYS.includes(key as keyof TeamClaudeConfig);
+export function isValidConfigKey(key: string): key is keyof TeamCodingConfig {
+  return CONFIG_KEYS.includes(key as keyof TeamCodingConfig);
 }
 
-export function parseConfigValue(key: keyof TeamClaudeConfig, value: string): unknown {
+export function parseConfigValue(key: keyof TeamCodingConfig, value: string): unknown {
   switch (key) {
     case "approvalMode":
       return value === "true" || value === "1";

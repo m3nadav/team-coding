@@ -1,4 +1,4 @@
-import { TeamClaudeServer } from "../server.js";
+import { TeamCodingServer } from "../server.js";
 import { ClaudeBridge, type PermissionMode } from "../claude.js";
 import { PromptRouter } from "../router.js";
 import { TerminalUI } from "../ui.js";
@@ -33,7 +33,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   process.on("uncaughtException", (err) => {
     debug(`uncaughtException: ${err.stack ?? err.message}`);
-    process.stderr.write(`\n[team-claude] Unexpected error: ${err.message}\n`);
+    process.stderr.write(`\n[team-coding] Unexpected error: ${err.message}\n`);
     if (debugEnabled) process.stderr.write(`${err.stack}\n`);
     process.exit(1);
   });
@@ -41,7 +41,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     const msg = reason instanceof Error ? reason.message : String(reason);
     const stack = reason instanceof Error ? reason.stack : undefined;
     debug(`unhandledRejection: ${stack ?? msg}`);
-    process.stderr.write(`\n[team-claude] Unhandled error: ${msg}\n`);
+    process.stderr.write(`\n[team-coding] Unhandled error: ${msg}\n`);
     if (debugEnabled && stack) process.stderr.write(`${stack}\n`);
     process.exit(1);
   });
@@ -55,7 +55,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   const ui = new TerminalUI({ userName: options.name, role: "host" });
 
   // Create server first so event handler can reference it
-  const server = new TeamClaudeServer({
+  const server = new TeamCodingServer({
     hostUser: options.name,
     password: session.password,
     sessionCode: session.code,
@@ -159,7 +159,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       const offer = await createOffer(session.code);
       peerCleanup = offer.cleanup;
 
-      const joinCmd = `npx team-claude join ${offer.offerCode} --password ${session.password}`;
+      const joinCmd = `npx team-coding join ${offer.offerCode} --password ${session.password}`;
       ui.showWelcome(session.code, session.password, undefined, joinCmd);
 
       if (copyToClipboard(joinCmd)) {
@@ -191,7 +191,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       connInfo = formatConnectionInfo({ mode: "lan", host: localIP, port });
       ui.showSystem(`LAN server ready on ${connInfo.displayUrl}`);
 
-      const joinCmd = `npx team-claude join ${session.code} --password ${session.password} --url ${connInfo.displayUrl}`;
+      const joinCmd = `npx team-coding join ${session.code} --password ${session.password} --url ${connInfo.displayUrl}`;
       console.log("");
       console.log(`  Send your partner this command to join:`);
       console.log(`  ${joinCmd}`);

@@ -9,7 +9,7 @@ describe("config", { sequential: true }, () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = join(tmpdir(), `team-claude-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tempDir = join(tmpdir(), `team-coding-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tempDir, { recursive: true });
     // Create a .git dir so project config detection works
     mkdirSync(join(tempDir, ".git"));
@@ -23,14 +23,14 @@ describe("config", { sequential: true }, () => {
     vi.restoreAllMocks();
   });
 
-  it("loadProjectConfig returns empty when no .team-claude.json exists", async () => {
+  it("loadProjectConfig returns empty when no .team-coding.json exists", async () => {
     vi.resetModules();
     const { loadProjectConfig } = await import("../config.js");
     expect(loadProjectConfig()).toEqual({});
   });
 
-  it("loadProjectConfig reads .team-claude.json", async () => {
-    writeFileSync(join(tempDir, ".team-claude.json"), JSON.stringify({ name: "eliran", port: 3000 }));
+  it("loadProjectConfig reads .team-coding.json", async () => {
+    writeFileSync(join(tempDir, ".team-coding.json"), JSON.stringify({ name: "eliran", port: 3000 }));
     vi.resetModules();
     const { loadProjectConfig } = await import("../config.js");
     const config = loadProjectConfig();
@@ -38,7 +38,7 @@ describe("config", { sequential: true }, () => {
     expect(config.port).toBe(3000);
   });
 
-  it("saveProjectConfig writes .team-claude.json", async () => {
+  it("saveProjectConfig writes .team-coding.json", async () => {
     vi.resetModules();
     const { saveProjectConfig, loadProjectConfig } = await import("../config.js");
     saveProjectConfig({ name: "benji", approvalMode: true });
@@ -50,7 +50,7 @@ describe("config", { sequential: true }, () => {
   });
 
   it("saveProjectConfig merges with existing", async () => {
-    writeFileSync(join(tempDir, ".team-claude.json"), JSON.stringify({ name: "eliran", port: 3000 }));
+    writeFileSync(join(tempDir, ".team-coding.json"), JSON.stringify({ name: "eliran", port: 3000 }));
     vi.resetModules();
     const { saveProjectConfig } = await import("../config.js");
     saveProjectConfig({ port: 4000 });
@@ -93,7 +93,7 @@ describe("config", { sequential: true }, () => {
 
   it("loadConfig merges user and project (project wins)", async () => {
     // Write project config
-    writeFileSync(join(tempDir, ".team-claude.json"), JSON.stringify({ name: "project-name", port: 5000 }));
+    writeFileSync(join(tempDir, ".team-coding.json"), JSON.stringify({ name: "project-name", port: 5000 }));
     vi.resetModules();
     const configModule = await import("../config.js");
     // Since we can't easily mock homedir for user config, just verify project config loads

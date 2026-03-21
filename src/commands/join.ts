@@ -1,4 +1,4 @@
-import { TeamClaudeClient } from "../client.js";
+import { TeamCodingClient } from "../client.js";
 import { TerminalUI } from "../ui.js";
 import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "./session-commands.js";
 import { createAnswer } from "../peer.js";
@@ -29,7 +29,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   // These run AFTER the normal handlers, so only fire for genuinely unhandled cases.
   process.on("uncaughtException", (err) => {
     debug(`uncaughtException: ${err.stack ?? err.message}`);
-    process.stderr.write(`\n[team-claude] Unexpected error: ${err.message}\n`);
+    process.stderr.write(`\n[team-coding] Unexpected error: ${err.message}\n`);
     if (options.debug) process.stderr.write(`${err.stack}\n`);
     process.exit(1);
   });
@@ -37,7 +37,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
     const msg = reason instanceof Error ? reason.message : String(reason);
     const stack = reason instanceof Error ? reason.stack : undefined;
     debug(`unhandledRejection: ${stack ?? msg}`);
-    process.stderr.write(`\n[team-claude] Unhandled error: ${msg}\n`);
+    process.stderr.write(`\n[team-coding] Unhandled error: ${msg}\n`);
     if (options.debug && stack) process.stderr.write(`${stack}\n`);
     process.exit(1);
   });
@@ -46,7 +46,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   const ui = new TerminalUI({ userName: options.name, role: "participant" });
 
-  const client = new TeamClaudeClient();
+  const client = new TeamCodingClient();
   client.setDebugLogger(debug);
   let result: Awaited<ReturnType<typeof client.connect>>;
   let peerCleanup: (() => void) | undefined;
@@ -604,6 +604,6 @@ async function resolveSessionUrl(sessionCode: string): Promise<string> {
   throw new Error(
     `Session discovery not available — use --url to connect directly.\n` +
     `  Ask the host for the join command, or run:\n` +
-    `  team-claude join ${sessionCode} --password <password> --url ws://<host-ip>:<port>`
+    `  team-coding join ${sessionCode} --password <password> --url ws://<host-ip>:<port>`
   );
 }

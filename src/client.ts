@@ -9,7 +9,7 @@ const DEFAULT_JOIN_TIMEOUT_MS = 5000;
 
 export type DebugLogger = (msg: string) => void;
 
-export class TeamClaudeClient extends EventEmitter {
+export class TeamCodingClient extends EventEmitter {
   private ws?: WebSocket;
   private transport?: DuetTransport;
   private user?: string;

@@ -1,11 +1,11 @@
 {
-  "name": "team-claude",
+  "name": "team-coding",
   "version": "0.1.0",
   "description": "Multi-participant collaborative coding sessions — share a Claude Code session with your team",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "team-claude": "dist/index.js"
+    "team-coding": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -45,12 +45,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/m3nadav/team-claude"
+    "url": "https://github.com/m3nadav/team-coding"
   },
   "bugs": {
-    "url": "https://github.com/m3nadav/team-claude/issues"
+    "url": "https://github.com/m3nadav/team-coding/issues"
   },
-  "homepage": "https://github.com/m3nadav/team-claude#readme",
+  "homepage": "https://github.com/m3nadav/team-coding#readme",
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@inkjs/ui": "^2.0.0",

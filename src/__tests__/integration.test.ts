@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { TeamClaudeServer } from "../server.js";
-import { TeamClaudeClient } from "../client.js";
+import { TeamCodingServer } from "../server.js";
+import { TeamCodingClient } from "../client.js";
 import { PromptRouter } from "../router.js";
 import { ClaudeBridge } from "../claude.js";
 import { TerminalUI } from "../ui.js";
@@ -9,8 +9,8 @@ const TEST_PASSWORD = "test1234";
 const TEST_SESSION_CODE = "cd-test1234";
 
 describe("integration: host + guest full flow", () => {
-  let server: TeamClaudeServer;
-  let client: TeamClaudeClient;
+  let server: TeamCodingServer;
+  let client: TeamCodingClient;
   let ui: TerminalUI | undefined;
 
   afterEach(async () => {
@@ -27,7 +27,7 @@ describe("integration: host + guest full flow", () => {
   });
 
   it("guest connects, sends prompt, host approves, Claude responds", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -50,7 +50,7 @@ describe("integration: host + guest full flow", () => {
       }
     });
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     client.sendPrompt("fix the bug");
@@ -91,7 +91,7 @@ describe("integration: host + guest full flow", () => {
   });
 
   it("host prompt is broadcast to guest exactly once", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -106,7 +106,7 @@ describe("integration: host + guest full flow", () => {
       approvalMode: false,
     });
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const received: Record<string, unknown>[] = [];
@@ -131,7 +131,7 @@ describe("integration: host + guest full flow", () => {
   });
 
   it("chat messages are not sent to Claude", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -141,7 +141,7 @@ describe("integration: host + guest full flow", () => {
     const claude = new ClaudeBridge();
     const sendPromptSpy = vi.spyOn(claude, "sendPrompt").mockReturnValue(undefined);
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     client.sendChat("just chatting");
@@ -151,14 +151,14 @@ describe("integration: host + guest full flow", () => {
   });
 
   it("guest receives streamed responses", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
     });
     const port = await server.start();
 
-    client = new TeamClaudeClient();
+    client = new TeamCodingClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const messages: Record<string, unknown>[] = [];

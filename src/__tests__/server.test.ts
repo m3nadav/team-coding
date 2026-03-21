@@ -1,27 +1,27 @@
 import { describe, it, expect, afterEach } from "vitest";
 import WebSocket from "ws";
-import { TeamClaudeServer } from "../server.js";
+import { TeamCodingServer } from "../server.js";
 import { deriveKey, encrypt, decrypt } from "../crypto.js";
 
 const TEST_PASSWORD = "test1234";
 const TEST_SESSION_CODE = "cd-test1234";
 const TEST_KEY = deriveKey(TEST_PASSWORD, TEST_SESSION_CODE);
 
-describe("TeamClaudeServer", () => {
-  let server: TeamClaudeServer;
+describe("TeamCodingServer", () => {
+  let server: TeamCodingServer;
 
   afterEach(async () => {
     if (server) await server.stop();
   });
 
   it("starts on a random port and returns the port", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
     expect(port).toBeGreaterThan(0);
   });
 
   it("accepts a WebSocket connection", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const ws = new WebSocket(`ws://localhost:${port}`);
@@ -32,7 +32,7 @@ describe("TeamClaudeServer", () => {
   });
 
   it("rejects connections with wrong password", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const ws = new WebSocket(`ws://localhost:${port}`);
@@ -62,7 +62,7 @@ describe("TeamClaudeServer", () => {
   });
 
   it("accepts connections with correct password", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const ws = new WebSocket(`ws://localhost:${port}`);
@@ -93,7 +93,7 @@ describe("TeamClaudeServer", () => {
   });
 
   it("overrides user field on guest prompt messages with stored guestUser", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const promptReceived = new Promise<Record<string, unknown>>((resolve) => {
@@ -139,7 +139,7 @@ describe("TeamClaudeServer", () => {
   });
 
   it("overrides user field on guest chat messages with stored guestUser", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const chatReceived = new Promise<Record<string, unknown>>((resolve) => {
@@ -185,7 +185,7 @@ describe("TeamClaudeServer", () => {
   });
 
   it("sends encrypted messages on the wire (not plaintext JSON)", async () => {
-    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamCodingServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
     const ws = new WebSocket(`ws://localhost:${port}`);

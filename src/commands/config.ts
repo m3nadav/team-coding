@@ -8,7 +8,7 @@ import {
   getConfigPaths,
   isValidConfigKey,
   parseConfigValue,
-  type TeamClaudeConfig,
+  type TeamCodingConfig,
 } from "../config.js";
 
 export function configShowCommand(): void {
@@ -17,17 +17,17 @@ export function configShowCommand(): void {
   const projectConfig = loadProjectConfig();
   const merged = loadConfig();
 
-  console.log(pc.bold("\nteam-claude configuration\n"));
+  console.log(pc.bold("\nteam-coding configuration\n"));
 
   console.log(pc.dim("Config files:"));
   console.log(`  User:    ${paths.user}`);
   console.log(`  Project: ${paths.project || pc.dim("(none)")}`);
   console.log("");
 
-  const keys = Object.keys(merged) as (keyof TeamClaudeConfig)[];
+  const keys = Object.keys(merged) as (keyof TeamCodingConfig)[];
   if (keys.length === 0) {
     console.log(pc.dim("  No configuration set."));
-    console.log(pc.dim(`  Run: team-claude config set name "Your Name"`));
+    console.log(pc.dim(`  Run: team-coding config set name "Your Name"`));
   } else {
     for (const key of keys) {
       const value = merged[key];
@@ -46,7 +46,7 @@ export function configSetCommand(key: string, value: string, options: { project?
   }
 
   const parsed = parseConfigValue(key, value);
-  const config = { [key]: parsed } as Partial<TeamClaudeConfig>;
+  const config = { [key]: parsed } as Partial<TeamCodingConfig>;
 
   if (options.project) {
     saveProjectConfig(config);
@@ -63,7 +63,7 @@ export function configGetCommand(key: string): void {
     process.exit(1);
   }
   const config = loadConfig();
-  const value = config[key as keyof TeamClaudeConfig];
+  const value = config[key as keyof TeamCodingConfig];
   if (value === undefined) {
     console.log(pc.dim("(not set)"));
   } else {

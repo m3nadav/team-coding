@@ -13,7 +13,7 @@ export function startRelayServer(port: number): void {
   const rooms = new Map<string, Room>();
   const wss = new WebSocketServer({ port });
 
-  console.log(`team-claude relay listening on ws://0.0.0.0:${port}`);
+  console.log(`team-coding relay listening on ws://0.0.0.0:${port}`);
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "/", `http://localhost:${port}`);

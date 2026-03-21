@@ -70,7 +70,7 @@ describe("TerminalUI", () => {
     ui.showWelcome("cd-abc123", "secret", "ws://192.168.1.5:4567");
     const calls = (console.log as any).mock.calls;
     const output = calls.map((c: any[]) => c.join(" ")).join("\n");
-    expect(output).toContain("npx team-claude join cd-abc123 --password secret --url ws://192.168.1.5:4567");
+    expect(output).toContain("npx team-coding join cd-abc123 --password secret --url ws://192.168.1.5:4567");
   });
 
   it("applies terminal background on showWelcome", () => {

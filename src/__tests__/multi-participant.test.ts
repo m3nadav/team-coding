@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import WebSocket from "ws";
-import { TeamClaudeServer } from "../server.js";
+import { TeamCodingServer } from "../server.js";
 import { deriveKey, encrypt, decrypt } from "../crypto.js";
 
 const TEST_PASSWORD = "test1234";
@@ -39,7 +39,7 @@ async function joinAsParticipant(
 }
 
 describe("Multi-participant server", () => {
-  let server: TeamClaudeServer;
+  let server: TeamCodingServer;
   const openWs: WebSocket[] = [];
 
   afterEach(async () => {
@@ -51,7 +51,7 @@ describe("Multi-participant server", () => {
   });
 
   it("allows multiple participants to join", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -78,7 +78,7 @@ describe("Multi-participant server", () => {
   });
 
   it("broadcasts participant_joined to existing participants", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -103,7 +103,7 @@ describe("Multi-participant server", () => {
   });
 
   it("broadcasts participant_left when someone disconnects", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -130,7 +130,7 @@ describe("Multi-participant server", () => {
   });
 
   it("rejects duplicate names", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -149,7 +149,7 @@ describe("Multi-participant server", () => {
   });
 
   it("rejects joining with host's name", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -164,7 +164,7 @@ describe("Multi-participant server", () => {
   });
 
   it("enforces max participants limit", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -198,7 +198,7 @@ describe("Multi-participant server", () => {
   });
 
   it("fans out chat messages to all participants", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -246,7 +246,7 @@ describe("Multi-participant server", () => {
   });
 
   it("assigns monotonically increasing sequence numbers", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -289,7 +289,7 @@ describe("Multi-participant server", () => {
   });
 
   it("kickParticipant removes a specific participant by name", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -319,7 +319,7 @@ describe("Multi-participant server", () => {
   });
 
   it("routes whispers only to targeted participants", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
@@ -383,7 +383,7 @@ describe("Multi-participant server", () => {
   });
 
   it("cannot kick the host", async () => {
-    server = new TeamClaudeServer({
+    server = new TeamCodingServer({
       hostUser: "host",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
