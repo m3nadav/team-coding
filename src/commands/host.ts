@@ -232,6 +232,14 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     getContextMode: () => router.getContextMode(),
     onContextModeChange: (mode) => {
       router.setContextMode(mode);
+      const detail = mode === "full"
+        ? "your @claude prompts will include team chat history as context"
+        : "your @claude prompts will be sent as-is (no chat history)";
+      server.broadcast({
+        type: "notice",
+        message: `Host set context mode to ${mode} — ${detail}`,
+        timestamp: Date.now(),
+      });
     },
   };
 
