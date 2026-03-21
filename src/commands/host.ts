@@ -376,7 +376,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       const participantNameList = server.getParticipantNames();
       const whisper = parseWhisper(text, participantNameList);
       if (whisper) {
-        ui.showSystem(`[whisper → ${whisper.targets.join(", ")}] ${whisper.text}`);
+        ui.showWhisper("outgoing", options.name, whisper.targets, whisper.text, "host");
         server.injectLocalMessage({
           type: "whisper",
           id: `host-w-${Date.now()}`,
@@ -429,6 +429,13 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     if (msg.type === "typing_indicator") {
       if ((msg as any).user !== options.name) {
         ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
+      }
+    }
+    if (msg.type === "whisper_received") {
+      const w = msg as any;
+      // Skip echo of our own outgoing whispers (already shown locally)
+      if (w.sender?.name !== options.name) {
+        ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
       }
     }
   });

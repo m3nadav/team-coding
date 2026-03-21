@@ -288,7 +288,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         const fromMe = w.sender?.name === options.name;
         // Skip echo — already shown locally when the message was sent
         if (fromMe) break;
-        ui.showSystem(`[whisper from ${w.sender?.name}] ${w.text}`);
+        ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
         break;
       }
       case "approval_status":
@@ -372,7 +372,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       const participantNameList = knownParticipants.map((p) => p.name);
       const whisper = parseWhisper(text, participantNameList);
       if (whisper) {
-        ui.showSystem(`[whisper → ${whisper.targets.join(", ")}] ${whisper.text}`);
+        ui.showWhisper("outgoing", options.name, whisper.targets, whisper.text, "guest");
         client.sendWhisper(whisper.targets, whisper.text);
       } else if (text.startsWith("@") && !text.startsWith("@claude")) {
         // Warn about unknown @name to avoid accidental public messages

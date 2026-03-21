@@ -408,6 +408,25 @@ export class TerminalUI {
     this.restoreInputLine();
   }
 
+  showWhisper(
+    direction: "incoming" | "outgoing",
+    user: string,
+    targets: string[],
+    text: string,
+    senderRole: "host" | "guest" | "participant" = "guest",
+  ): void {
+    this.clearInputLine();
+    const partnerColor = senderRole === "host" ? pc.cyan : pc.yellow;
+    if (direction === "outgoing") {
+      console.log(`\n${pc.dim(`you[whisper → ${targets.join(", ")}]:`)}`);
+    } else {
+      console.log(`\n${pc.bold(partnerColor(`${user}[whisper]:`))}`);
+    }
+    console.log(`  ${this.background ? pc.white(text) : text}`);
+    console.log("");
+    this.restoreInputLine();
+  }
+
   showUserPrompt(user: string, text: string, role: "host" | "guest" | "participant", mode: "chat" | "claude" = "chat"): void {
     this.clearInputLine();
     const isSelf = role === this.options.role;
