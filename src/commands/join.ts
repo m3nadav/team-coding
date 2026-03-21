@@ -167,13 +167,16 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           if (isAgentTurn) agentResponseBuffer += event.text;
           break;
         case "session_init":
-          localSessionId = event.sessionId;
-          saveUserConfig({ lastLocalSessionId: event.sessionId });
-          ui.showSystem(
-            isResuming
-              ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
-              : `Started local Claude session ${event.sessionId.slice(0, 8)}… (will auto-resume next time)`
-          );
+          if (!localSessionId) {
+            // Only show message and save config on first init — session_init fires every turn
+            localSessionId = event.sessionId;
+            saveUserConfig({ lastLocalSessionId: event.sessionId });
+            ui.showSystem(
+              isResuming
+                ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
+                : `Started local Claude session ${event.sessionId.slice(0, 8)}… (will auto-resume next time)`
+            );
+          }
           break;
         case "tool_use":
           ui.showSystem(`[local: ${event.tool}]`);
