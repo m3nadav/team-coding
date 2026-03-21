@@ -69,10 +69,16 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     permissionMode: options.permissionMode ?? "auto",
   });
 
+  let claudeSessionId: string | undefined;
+  let totalCost = 0;
+
   // Register event handler BEFORE start() to catch early errors
   claude.on("event", (event) => {
     debug(`claude event: ${event.type}${event.type === "tool_use" ? ` (${event.tool})` : ""}`);
     switch (event.type) {
+      case "session_init":
+        claudeSessionId = event.sessionId;
+        break;
       case "stream_chunk":
         ui.showStreamChunk(event.text);
         server.broadcast({ ...event, timestamp: Date.now() });
@@ -87,6 +93,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         break;
       case "turn_complete":
         debug(`turn_complete cost=$${event.cost.toFixed(4)} duration=${event.durationMs}ms`);
+        totalCost += event.cost;
         ui.showTurnComplete(event.cost, event.durationMs);
         server.broadcast({ ...event, timestamp: Date.now() });
         break;
@@ -239,7 +246,8 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       ui.showSessionSummary({
         duration: `${minutes}m ${seconds}s`,
         messageCount,
-        resumeSessionId: claude.getSessionId() ?? undefined,
+        cost: totalCost || undefined,
+        resumeSessionId: claudeSessionId,
       });
       connInfo?.cleanup?.();
       peerCleanup?.();
