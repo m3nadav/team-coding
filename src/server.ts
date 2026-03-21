@@ -307,18 +307,26 @@ export class TeamClaudeServer extends EventEmitter {
     }
 
     if (isTypingMessage(msg)) {
-      // Broadcast to all other participants (including host via server_message).
-      // broadcast() already calls emit("server_message") internally, so the host
-      // receives it without needing a separate emit.
-      this.broadcast(
-        {
-          type: "typing_indicator",
-          user: sender.name,
-          isTyping: msg.isTyping,
-          timestamp: Date.now(),
-        } as ServerMessage,
-        [sender.id],
-      );
+      const indicator: ServerMessage = {
+        type: "typing_indicator",
+        user: sender.name,
+        isTyping: msg.isTyping,
+        timestamp: Date.now(),
+      } as ServerMessage;
+
+      if (!msg.targets) {
+        // No targets field — broadcast to everyone except sender
+        this.broadcast(indicator, [sender.id]);
+      } else if (msg.targets.length > 0) {
+        // Targeted — send only to the named participants
+        for (const targetName of msg.targets) {
+          const target = this.registry.getByName(targetName);
+          if (target && target.id !== sender.id) {
+            this.sendTo(target.id, indicator);
+          }
+        }
+      }
+      // msg.targets === [] → suppress, send to nobody
       return;
     }
 
@@ -433,6 +441,14 @@ export class TeamClaudeServer extends EventEmitter {
     if (participant.role === "host") {
       this.emit("server_message", msg);
     }
+  }
+
+  /**
+   * Send a message to a participant by name.
+   */
+  sendToByName(name: string, msg: ServerMessage): void {
+    const participant = this.registry.getByName(name);
+    if (participant) this.sendTo(participant.id, msg);
   }
 
   private send(ws: WebSocket, msg: ServerMessage): void {

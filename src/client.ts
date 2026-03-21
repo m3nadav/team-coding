@@ -216,11 +216,12 @@ export class TeamClaudeClient extends EventEmitter {
     });
   }
 
-  sendTyping(isTyping: boolean): void {
+  sendTyping(isTyping: boolean, targets?: string[]): void {
     this.sendEncrypted({
       type: "typing",
       user: this.user!,
       isTyping,
+      targets,
       timestamp: Date.now(),
     });
   }

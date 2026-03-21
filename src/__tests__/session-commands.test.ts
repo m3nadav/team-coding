@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { handleSlashCommand, parseWhisper, type CommandContext } from "../commands/session-commands.js";
+import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "../commands/session-commands.js";
 
 function createMockContext(overrides?: Partial<CommandContext>): CommandContext {
   return {
@@ -293,6 +293,48 @@ describe("session commands", () => {
       const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(calls).not.toContain("/think");
     });
+  });
+});
+
+describe("resolveTypingTargets", () => {
+  const participants = ["alice", "bob", "charlie"];
+
+  it("returns null for plain messages (broadcast)", () => {
+    expect(resolveTypingTargets("hello world", participants)).toBeNull();
+    expect(resolveTypingTargets("", participants)).toBeNull();
+    expect(resolveTypingTargets("/help", participants)).toBeNull();
+  });
+
+  it("returns null for @claude prompt (broadcast)", () => {
+    expect(resolveTypingTargets("@claude fix the bug", participants)).toBeNull();
+    expect(resolveTypingTargets("@Claude ", participants)).toBeNull();
+  });
+
+  it("returns [] for bare @ (suppress — target unknown)", () => {
+    expect(resolveTypingTargets("@", participants)).toEqual([]);
+  });
+
+  it("returns [] for partial @name that doesn't match (suppress)", () => {
+    expect(resolveTypingTargets("@ali", participants)).toEqual([]);
+    expect(resolveTypingTargets("@unknown", participants)).toEqual([]);
+  });
+
+  it("returns target once full name is typed", () => {
+    expect(resolveTypingTargets("@alice", participants)).toEqual(["alice"]);
+    expect(resolveTypingTargets("@alice ", participants)).toEqual(["alice"]);
+    expect(resolveTypingTargets("@alice hello there", participants)).toEqual(["alice"]);
+  });
+
+  it("resolves multiple targets for multi-whisper", () => {
+    expect(resolveTypingTargets("@alice @bob hey", participants)).toEqual(["alice", "bob"]);
+  });
+
+  it("stops at first unresolved target (partial name)", () => {
+    expect(resolveTypingTargets("@alice @unkn", participants)).toEqual(["alice"]);
+  });
+
+  it("is case-insensitive for matching but returns found name", () => {
+    expect(resolveTypingTargets("@Alice hey", participants)).toEqual(["alice"]);
   });
 });
 

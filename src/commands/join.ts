@@ -1,6 +1,6 @@
 import { TeamClaudeClient } from "../client.js";
 import { TerminalUI } from "../ui.js";
-import { handleSlashCommand, parseWhisper, type CommandContext } from "./session-commands.js";
+import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "./session-commands.js";
 import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
@@ -321,26 +321,41 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   });
 
   let typingTimeout: ReturnType<typeof setTimeout> | undefined;
-  let isTyping = false;
+  // null = not currently typing; otherwise tracks what targets we sent typing:true for
+  let currentTyping: { targets: string[] | null } | null = null;
+
+  function stopTyping(): void {
+    if (!currentTyping) return;
+    client.sendTyping(false, currentTyping.targets ?? undefined);
+    currentTyping = null;
+  }
 
   ui.onKeystroke(() => {
-    if (!isTyping) {
-      isTyping = true;
-      client.sendTyping(true);
+    const input = ui.getCurrentInput();
+    const newTargets = resolveTypingTargets(input, knownParticipants.map((p) => p.name));
+
+    // If targets changed, stop the current typing before starting a new one
+    if (currentTyping !== null) {
+      const changed = JSON.stringify(currentTyping.targets) !== JSON.stringify(newTargets);
+      if (changed) stopTyping();
     }
+
+    // Send typing:true unless suppressing (empty targets array from unresolved @name)
+    if (currentTyping === null && (newTargets === null || newTargets.length > 0)) {
+      client.sendTyping(true, newTargets ?? undefined);
+      currentTyping = { targets: newTargets };
+    }
+
     if (typingTimeout) clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-      isTyping = false;
-      client.sendTyping(false);
+      stopTyping();
+      typingTimeout = undefined;
     }, 2000);
   });
 
   ui.onInput((text) => {
     if (typingTimeout) clearTimeout(typingTimeout);
-    if (isTyping) {
-      isTyping = false;
-      client.sendTyping(false);
-    }
+    stopTyping();
 
     messageCount++;
 
@@ -379,12 +394,13 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   client.on("disconnected", () => {
     debug("disconnected event received");
-    // Cancel any pending typing timeout — if it fires after disconnect it would
-    // call sendTyping() on a closed socket, which previously threw and crashed.
+    // Cancel any pending typing timeout — the socket is already closed so just
+    // clear state without trying to send a typing:false (sendEncrypted silently drops it).
     if (typingTimeout) {
       clearTimeout(typingTimeout);
       typingTimeout = undefined;
     }
+    currentTyping = null;
     const elapsed = Date.now() - sessionStartTime;
     const minutes = Math.floor(elapsed / 60000);
     const seconds = Math.floor((elapsed % 60000) / 1000);

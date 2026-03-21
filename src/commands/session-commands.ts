@@ -140,6 +140,35 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
 }
 
 /**
+ * Determine typing indicator routing from the current input buffer.
+ *
+ * Returns:
+ *   null        → broadcast (normal message or @claude prompt)
+ *   []          → suppress  (starts with @ but target not yet resolved)
+ *   string[]    → targeted  (whisper — send only to these participant names)
+ */
+export function resolveTypingTargets(input: string, participantNames: string[]): string[] | null {
+  if (!input.startsWith("@")) return null;
+  if (input.toLowerCase().startsWith("@claude")) return null;
+
+  const targets: string[] = [];
+  let remaining = input;
+
+  while (remaining.startsWith("@")) {
+    const match = remaining.match(/^@(\S+)/);
+    if (!match) break;
+    const name = match[1];
+    const found = participantNames.find((n) => n.toLowerCase() === name.toLowerCase());
+    if (!found) break; // partial or unknown name — stop resolving
+    targets.push(found);
+    remaining = remaining.slice(match[0].length).trimStart();
+    if (remaining && !remaining.startsWith("@")) break;
+  }
+
+  return targets.length > 0 ? targets : []; // [] = suppress
+}
+
+/**
  * Parse input text for whisper syntax: @name1 @name2 message
  * Returns null if not a whisper (no @name prefix, or @claude prefix).
  */

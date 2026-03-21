@@ -4,7 +4,7 @@ import { PromptRouter } from "../router.js";
 import { TerminalUI } from "../ui.js";
 import { getLocalIP, formatConnectionInfo, startCloudflareTunnel, startLocaltunnel, type ConnectionInfo } from "../connection.js";
 import { SessionManager } from "../session.js";
-import { handleSlashCommand, parseWhisper, type CommandContext } from "./session-commands.js";
+import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "./session-commands.js";
 import { parseSessionHistory, getProjectSessionDir } from "../history.js";
 import { createOffer } from "../peer.js";
 import { copyToClipboard } from "../clipboard.js";
@@ -309,41 +309,48 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   let typingTimeout: ReturnType<typeof setTimeout> | undefined;
-  let isTyping = false;
+  let currentTyping: { targets: string[] | null } | null = null;
+
+  function sendTypingIndicator(isTyping: boolean, targets: string[] | null): void {
+    const msg = { type: "typing_indicator" as const, user: options.name, isTyping, timestamp: Date.now() };
+    if (targets === null) {
+      server.broadcast(msg as any);
+    } else {
+      for (const name of targets) server.sendToByName(name, msg as any);
+    }
+    // targets === [] → suppress, send to nobody
+  }
+
+  function stopTyping(): void {
+    if (!currentTyping) return;
+    sendTypingIndicator(false, currentTyping.targets);
+    currentTyping = null;
+  }
 
   ui.onKeystroke(() => {
-    if (!isTyping) {
-      isTyping = true;
-      server.broadcast({
-        type: "typing_indicator",
-        user: options.name,
-        isTyping: true,
-        timestamp: Date.now(),
-      } as any);
+    const input = ui.getCurrentInput();
+    const newTargets = resolveTypingTargets(input, server.getParticipantNames());
+
+    if (currentTyping !== null) {
+      const changed = JSON.stringify(currentTyping.targets) !== JSON.stringify(newTargets);
+      if (changed) stopTyping();
     }
+
+    if (currentTyping === null && (newTargets === null || newTargets.length > 0)) {
+      sendTypingIndicator(true, newTargets);
+      currentTyping = { targets: newTargets };
+    }
+
     if (typingTimeout) clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-      isTyping = false;
-      server.broadcast({
-        type: "typing_indicator",
-        user: options.name,
-        isTyping: false,
-        timestamp: Date.now(),
-      } as any);
+      stopTyping();
+      typingTimeout = undefined;
     }, 2000);
   });
 
   ui.onInput((text) => {
     if (typingTimeout) clearTimeout(typingTimeout);
-    if (isTyping) {
-      isTyping = false;
-      server.broadcast({
-        type: "typing_indicator",
-        user: options.name,
-        isTyping: false,
-        timestamp: Date.now(),
-      } as any);
-    }
+    stopTyping();
 
     messageCount++;
 

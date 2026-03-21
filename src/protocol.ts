@@ -32,6 +32,8 @@ export interface TypingMessage extends BaseMessage {
   type: "typing";
   user: string;
   isTyping: boolean;
+  /** If set, typing indicator is sent only to these named participants. */
+  targets?: string[];
 }
 
 export interface ApprovalResponse extends BaseMessage {

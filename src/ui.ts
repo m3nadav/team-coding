@@ -267,6 +267,7 @@ export class TerminalUI {
               this.lineBuffer = this.lineBuffer.slice(0, this.cursorPos - 1) + this.lineBuffer.slice(this.cursorPos);
               this.cursorPos--;
               this.redrawLine();
+              this.keystrokeHandler?.();
             }
             continue;
           }
@@ -569,6 +570,10 @@ export class TerminalUI {
     if (this.rawMode) {
       this.redrawLine();
     }
+  }
+
+  getCurrentInput(): string {
+    return this.lineBuffer;
   }
 
   onKeystroke(handler: () => void): void {
