@@ -155,15 +155,23 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             agentResponseBuffer = "";
             if (response) {
               lastAgentResponseTime = Date.now();
-              client.sendChat(response, true); // isAgentResponse = true
+              if (agentTurnWhisperTarget) {
+                ui.showWhisper("outgoing", options.name, [agentTurnWhisperTarget], response, "guest");
+                client.sendWhisper([agentTurnWhisperTarget], response);
+                agentTurnWhisperTarget = null;
+              } else {
+                client.sendChat(response, true); // isAgentResponse = true
+              }
             }
           }
+          resetContextWindow();
           break;
         case "error":
           ui.showLocalClaudeError(event.message);
           if (isAgentTurn) {
             isAgentTurn = false;
             agentResponseBuffer = "";
+            agentTurnWhisperTarget = null;
           }
           break;
       }
@@ -197,16 +205,32 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   const AGENT_RATE_LIMIT_MS = 5000;
   let isAgentTurn = false;
   let agentResponseBuffer = "";
+  let agentTurnWhisperTarget: string | null = null;
+
+  // Shared Claude response accumulator — added to context on turn_complete
+  let sharedClaudeBuffer = "";
+
+  // Context window: only messages since last Claude response (shared or local)
+  let localContextStartIndex = 0;
 
   function addToLocalChatHistory(user: string, text: string): void {
     localChatHistory.push({ user, text });
-    if (localChatHistory.length > 500) localChatHistory.shift();
+    if (localChatHistory.length > 500) {
+      const removed = localChatHistory.shift();
+      // Keep contextStartIndex in bounds after the shift
+      if (removed) localContextStartIndex = Math.max(0, localContextStartIndex - 1);
+    }
   }
 
   function buildLocalContextPrefix(): string {
-    if (localChatHistory.length === 0) return "";
-    const lines = localChatHistory.map((e) => `${e.user}: ${e.text}`).join("\n");
+    const relevant = localChatHistory.slice(localContextStartIndex);
+    if (relevant.length === 0) return "";
+    const lines = relevant.map((e) => `${e.user}: ${e.text}`).join("\n");
     return `[Team chat context]\n${lines}\n\n`;
+  }
+
+  function resetContextWindow(): void {
+    localContextStartIndex = localChatHistory.length;
   }
 
   // Dynamic participant list — initialized from join_accepted, updated on join/leave
@@ -283,6 +307,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             agentModeEnabled = false;
             isAgentTurn = false;
             agentResponseBuffer = "";
+            agentTurnWhisperTarget = null;
             client.sendAgentModeToggle(false, result.participantId);
             ui.showSystem("Agent mode disabled.");
           }
@@ -367,6 +392,24 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         // Skip echo — already shown locally when the message was sent
         if (fromMe) break;
         ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
+
+        // Agent mode: auto-respond to whispers with a whisper back to the sender
+        if (agentModeEnabled && localClaude && !localClaude.isBusy()) {
+          const now = Date.now();
+          if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
+            const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
+            const fullPrompt = contextPrefix
+              ? `${contextPrefix}[Private whisper from ${w.sender?.name}]\n${w.text}`
+              : `${w.sender?.name} whispered to you: ${w.text}`;
+            isAgentTurn = true;
+            agentTurnWhisperTarget = w.sender?.name;
+            agentResponseBuffer = "";
+            localClaude.sendPrompt(fullPrompt);
+          } else {
+            const remaining = Math.ceil((AGENT_RATE_LIMIT_MS - (now - lastAgentResponseTime)) / 1000);
+            ui.showSystem(`[agent] Rate limit active — skipping whisper response (${remaining}s remaining)`);
+          }
+        }
         break;
       }
       case "approval_status":
@@ -374,6 +417,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         break;
       case "stream_chunk":
         ui.showStreamChunk(msg.text);
+        sharedClaudeBuffer += msg.text;
         break;
       case "tool_use":
         ui.showToolUse(msg.tool, msg.input);
@@ -383,6 +427,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         break;
       case "turn_complete":
         ui.showTurnComplete(msg.cost, msg.durationMs);
+        if (sharedClaudeBuffer.trim()) {
+          addToLocalChatHistory("Claude", sharedClaudeBuffer.trim());
+          sharedClaudeBuffer = "";
+        }
+        resetContextWindow();
         break;
       case "typing_indicator":
         if ((msg as any).user !== options.name) {
@@ -396,6 +445,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           agentModeEnabled = false;
           isAgentTurn = false;
           agentResponseBuffer = "";
+          agentTurnWhisperTarget = null;
           ui.showSystem("Host has disabled your agent mode.");
         }
         break;
