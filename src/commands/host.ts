@@ -188,10 +188,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui,
     role: "host",
     sessionCode: session.code,
-    partnerName: undefined,
+    participantNames: () => server.getParticipantNames(),
     startTime: sessionStartTime,
     onLeave: async () => {
-      // Notify guest before shutting down
       server.broadcast({
         type: "notice",
         message: "Host ended the session. Goodbye!",
@@ -214,15 +213,23 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     onTrustChange: (trusted) => {
       router.setApprovalMode(!trusted);
     },
-    onKick: () => {
-      server.kickGuest();
+    onKick: (name: string) => {
+      const result = server.kickParticipant(name);
+      if (!result) {
+        ui.showSystem(`Could not kick "${name}" — not found or is the host.`);
+      }
+    },
+    onAgentModeOff: (name: string) => {
+      const result = server.disableAgentMode(name);
+      if (!result) {
+        ui.showSystem(`Could not disable agent mode for "${name}" — not found or not in agent mode.`);
+      }
     },
   };
 
-  server.on("guest_joined", async (user: string) => {
+  server.on("participant_joined", async (user: string) => {
     sessionManager.addGuest(session.code, user);
     ui.showPartnerJoined(user);
-    cmdCtx.partnerName = user;
 
     // Send session history to guest if resuming an existing session
     const claudeSessionId = claude.getSessionId();
@@ -248,9 +255,8 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     }
   });
 
-  server.on("guest_left", () => {
-    ui.showPartnerLeft(server.getGuestUser() || "partner");
-    cmdCtx.partnerName = undefined;
+  server.on("participant_left", (user: string) => {
+    ui.showPartnerLeft(user || "participant");
   });
 
   let typingTimeout: ReturnType<typeof setTimeout> | undefined;

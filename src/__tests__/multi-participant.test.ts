@@ -318,6 +318,70 @@ describe("Multi-participant server", () => {
     expect(server.kickParticipant("host")).toBe(false);
   });
 
+  it("routes whispers only to targeted participants", async () => {
+    server = new TeamClaudeServer({
+      hostUser: "host",
+      password: TEST_PASSWORD,
+      sessionCode: TEST_SESSION_CODE,
+    });
+    server.registerHost();
+    const port = await server.start();
+
+    const { ws: ws1 } = await joinAsParticipant(port, "alice");
+    openWs.push(ws1);
+
+    // Register listener BEFORE bob joins to avoid race with participant_joined delivery
+    const aliceSeeBob = receiveDecrypted(ws1);
+    const { ws: ws2 } = await joinAsParticipant(port, "bob");
+    openWs.push(ws2);
+    await aliceSeeBob; // consume participant_joined(bob) on ws1
+
+    // Register listeners BEFORE charlie joins
+    const aliceSeeCharlie = receiveDecrypted(ws1);
+    const bobSeeCharlie = receiveDecrypted(ws2);
+    const { ws: ws3 } = await joinAsParticipant(port, "charlie");
+    openWs.push(ws3);
+    await aliceSeeCharlie; // consume participant_joined(charlie) on ws1
+    await bobSeeCharlie;   // consume participant_joined(charlie) on ws2
+
+    // Alice whispers to bob only
+    const bobWhisper = receiveDecrypted(ws2);
+    const aliceEcho = receiveDecrypted(ws1); // sender gets echo
+
+    sendEncrypted(ws1, {
+      type: "whisper",
+      id: "w1",
+      targets: ["bob"],
+      text: "secret for bob",
+      timestamp: Date.now(),
+    });
+
+    const [bobMsg, aliceMsg] = await Promise.all([bobWhisper, aliceEcho]);
+
+    expect(bobMsg.type).toBe("whisper_received");
+    expect(bobMsg.text).toBe("secret for bob");
+    expect((bobMsg.sender as any).name).toBe("alice");
+    expect(bobMsg.targets).toEqual(["bob"]);
+
+    // Alice should get the echo too
+    expect(aliceMsg.type).toBe("whisper_received");
+    expect(aliceMsg.text).toBe("secret for bob");
+
+    // Charlie should NOT have received anything — verify by sending a chat
+    // and checking charlie gets THAT (not the whisper)
+    const charlieMsg = receiveDecrypted(ws3);
+    sendEncrypted(ws1, {
+      type: "chat",
+      id: "chat-after-whisper",
+      user: "alice",
+      text: "public message",
+      timestamp: Date.now(),
+    });
+    const cMsg = await charlieMsg;
+    expect(cMsg.type).toBe("chat_received");
+    expect(cMsg.text).toBe("public message");
+  });
+
   it("cannot kick the host", async () => {
     server = new TeamClaudeServer({
       hostUser: "host",

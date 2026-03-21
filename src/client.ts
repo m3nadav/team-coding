@@ -196,11 +196,22 @@ export class TeamClaudeClient extends EventEmitter {
     });
   }
 
-  sendChat(text: string): void {
+  sendChat(text: string, isAgentResponse?: boolean): void {
     this.sendEncrypted({
       type: "chat",
       id: nanoid(8),
       user: this.user!,
+      text,
+      isAgentResponse,
+      timestamp: Date.now(),
+    });
+  }
+
+  sendWhisper(targets: string[], text: string): void {
+    this.sendEncrypted({
+      type: "whisper",
+      id: nanoid(8),
+      targets,
       text,
       timestamp: Date.now(),
     });

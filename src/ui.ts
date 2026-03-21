@@ -4,7 +4,7 @@ import { pickSessionBackground, applyBackground, restoreBackground, type Session
 
 interface TerminalUIOptions {
   userName: string;
-  role: "host" | "guest";
+  role: "host" | "guest" | "participant";
 }
 
 export class TerminalUI {
@@ -336,7 +336,7 @@ export class TerminalUI {
     this.restoreInputLine();
   }
 
-  showUserPrompt(user: string, text: string, role: "host" | "guest", mode: "chat" | "claude" = "chat"): void {
+  showUserPrompt(user: string, text: string, role: "host" | "guest" | "participant", mode: "chat" | "claude" = "chat"): void {
     this.clearInputLine();
     const isSelf = role === this.options.role;
     const partnerColor = role === "host" ? pc.cyan : pc.yellow;

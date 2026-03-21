@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { handleSlashCommand, type CommandContext } from "../commands/session-commands.js";
+import { handleSlashCommand, parseWhisper, type CommandContext } from "../commands/session-commands.js";
 
 function createMockContext(overrides?: Partial<CommandContext>): CommandContext {
   return {
@@ -9,11 +9,12 @@ function createMockContext(overrides?: Partial<CommandContext>): CommandContext 
     } as any,
     role: "host",
     sessionCode: "cd-test123",
-    partnerName: "benji",
+    participantNames: () => ["host", "alice", "bob"],
     startTime: Date.now() - 120000, // 2 minutes ago
     onLeave: vi.fn(),
     onTrustChange: vi.fn(),
     onKick: vi.fn(),
+    onAgentModeOff: vi.fn(),
     ...overrides,
   };
 }
@@ -31,8 +32,10 @@ describe("session commands", () => {
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(calls).toContain("/help");
     expect(calls).toContain("/status");
+    expect(calls).toContain("/who");
     expect(calls).toContain("/leave");
     expect(calls).toContain("@claude");
+    expect(calls).toContain("@name");
   });
 
   it("/help shows host-only commands for host", () => {
@@ -41,10 +44,11 @@ describe("session commands", () => {
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(calls).toContain("/trust");
     expect(calls).toContain("/kick");
+    expect(calls).toContain("/agent-mode off");
   });
 
-  it("/help hides host-only commands for guest", () => {
-    const ctx = createMockContext({ role: "guest" });
+  it("/help hides host-only commands for participant", () => {
+    const ctx = createMockContext({ role: "participant" });
     handleSlashCommand("/help", ctx);
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(calls).not.toContain("/trust");
@@ -67,20 +71,30 @@ describe("session commands", () => {
     expect(ctx2.onLeave).toHaveBeenCalled();
   });
 
-  it("/status shows session info", () => {
+  it("/status shows session info with participant list", () => {
     const ctx = createMockContext();
     handleSlashCommand("/status", ctx);
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(calls).toContain("cd-test123");
     expect(calls).toContain("host");
-    expect(calls).toContain("benji");
+    expect(calls).toContain("alice");
+    expect(calls).toContain("bob");
     expect(calls).toContain("2m");
   });
 
+  it("/who lists all participants", () => {
+    const ctx = createMockContext();
+    handleSlashCommand("/who", ctx);
+    const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+    expect(calls).toContain("host");
+    expect(calls).toContain("alice");
+    expect(calls).toContain("bob");
+  });
+
   it("/trust only works for host", () => {
-    const guestCtx = createMockContext({ role: "guest" });
-    handleSlashCommand("/trust", guestCtx);
-    expect(guestCtx.onTrustChange).not.toHaveBeenCalled();
+    const participantCtx = createMockContext({ role: "participant" });
+    handleSlashCommand("/trust", participantCtx);
+    expect(participantCtx.onTrustChange).not.toHaveBeenCalled();
 
     const hostCtx = createMockContext({ role: "host" });
     handleSlashCommand("/trust", hostCtx);
@@ -88,31 +102,39 @@ describe("session commands", () => {
   });
 
   it("/approval only works for host", () => {
-    const guestCtx = createMockContext({ role: "guest" });
-    handleSlashCommand("/approval", guestCtx);
-    expect(guestCtx.onTrustChange).not.toHaveBeenCalled();
+    const participantCtx = createMockContext({ role: "participant" });
+    handleSlashCommand("/approval", participantCtx);
+    expect(participantCtx.onTrustChange).not.toHaveBeenCalled();
 
     const hostCtx = createMockContext({ role: "host" });
     handleSlashCommand("/approval", hostCtx);
     expect(hostCtx.onTrustChange).toHaveBeenCalledWith(false);
   });
 
-  it("/kick only works for host", () => {
-    const guestCtx = createMockContext({ role: "guest" });
-    handleSlashCommand("/kick", guestCtx);
-    expect(guestCtx.onKick).not.toHaveBeenCalled();
-
-    const hostCtx = createMockContext({ role: "host" });
-    handleSlashCommand("/kick", hostCtx);
-    expect(hostCtx.onKick).toHaveBeenCalled();
-  });
-
-  it("/kick reports no guest when none connected", () => {
-    const ctx = createMockContext({ partnerName: undefined });
+  it("/kick requires name argument", () => {
+    const ctx = createMockContext();
     handleSlashCommand("/kick", ctx);
     expect(ctx.onKick).not.toHaveBeenCalled();
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
-    expect(calls).toContain("No guest");
+    expect(calls).toContain("Usage: /kick <name>");
+  });
+
+  it("/kick <name> calls onKick with name", () => {
+    const ctx = createMockContext();
+    handleSlashCommand("/kick alice", ctx);
+    expect(ctx.onKick).toHaveBeenCalledWith("alice");
+  });
+
+  it("/kick only works for host", () => {
+    const participantCtx = createMockContext({ role: "participant" });
+    handleSlashCommand("/kick alice", participantCtx);
+    expect(participantCtx.onKick).not.toHaveBeenCalled();
+  });
+
+  it("/agent-mode off <name> calls onAgentModeOff for host", () => {
+    const ctx = createMockContext({ role: "host" });
+    handleSlashCommand("/agent-mode off alice", ctx);
+    expect(ctx.onAgentModeOff).toHaveBeenCalledWith("alice");
   });
 
   it("/clear writes clear screen escape", () => {
@@ -130,5 +152,47 @@ describe("session commands", () => {
     const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
     expect(calls).toContain("Unknown command");
     expect(calls).toContain("/foobar");
+  });
+});
+
+describe("parseWhisper", () => {
+  const participants = ["alice", "bob", "charlie"];
+
+  it("returns null for plain messages", () => {
+    expect(parseWhisper("hello world", participants)).toBeNull();
+  });
+
+  it("returns null for @claude prefix", () => {
+    expect(parseWhisper("@claude fix the bug", participants)).toBeNull();
+  });
+
+  it("parses single target whisper", () => {
+    const result = parseWhisper("@alice hey there", participants);
+    expect(result).toEqual({ targets: ["alice"], text: "hey there" });
+  });
+
+  it("parses multiple target whisper", () => {
+    const result = parseWhisper("@alice @bob hello friends", participants);
+    expect(result).toEqual({ targets: ["alice", "bob"], text: "hello friends" });
+  });
+
+  it("returns null for @name with no message text", () => {
+    expect(parseWhisper("@alice", participants)).toBeNull();
+    expect(parseWhisper("@alice ", participants)).toBeNull();
+  });
+
+  it("returns null for unknown @name", () => {
+    expect(parseWhisper("@unknown hello", participants)).toBeNull();
+  });
+
+  it("stops parsing targets at unknown name", () => {
+    const result = parseWhisper("@alice @unknown hello", participants);
+    // @alice is a target, @unknown is not known so it becomes part of the text
+    expect(result).toEqual({ targets: ["alice"], text: "@unknown hello" });
+  });
+
+  it("is case-insensitive for name matching", () => {
+    const result = parseWhisper("@Alice hey", participants);
+    expect(result).toEqual({ targets: ["Alice"], text: "hey" });
   });
 });

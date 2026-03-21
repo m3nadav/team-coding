@@ -12,7 +12,7 @@ interface JoinOptions {
 }
 
 export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptions): Promise<void> {
-  const ui = new TerminalUI({ userName: options.name, role: "guest" });
+  const ui = new TerminalUI({ userName: options.name, role: "participant" });
 
   const client = new TeamClaudeClient();
   let result: Awaited<ReturnType<typeof client.connect>>;
@@ -109,8 +109,8 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   const cmdCtx: CommandContext = {
     ui,
-    role: "guest",
-    partnerName: result.hostUser,
+    role: "participant",
+    participantNames: () => [result.hostUser, options.name],
     startTime: sessionStartTime,
     onLeave: async () => {
       const elapsed = Date.now() - sessionStartTime;
@@ -147,12 +147,12 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       }
       case "chat_received":
         // Skip own chat messages (already shown locally) — use source field to avoid same-name collisions
-        if (msg.source === "guest") break;
+        if (msg.source === "participant") break;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "chat");
         break;
       case "prompt_received":
         // Skip own messages (already shown locally when typed) — use source field
-        if (msg.source === "guest") break;
+        if (msg.source === "participant") break;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "claude");
         break;
       case "approval_status":

@@ -1,6 +1,20 @@
 # team-claude Progress
 
-## Status: Phase 1 Complete
+## Status: Phase 2 Complete
+
+### 2026-03-21 — Phase 2: Chat with Ordering & Whispers
+
+- **Phase**: Phase 2 (complete)
+- **Summary**:
+  - Updated `src/commands/session-commands.ts` — Added `/who` command, `/kick <name>` with name arg, `/agent-mode off <name>` for host, `parseWhisper()` function (client-side `@name message` parsing, multi-target support, `@claude` exclusion), updated `CommandContext` (added `participantNames: () => string[]`, `onKick(name)`, `onAgentModeOff(name)`)
+  - Updated `src/commands/host.ts` — Switched to `participantNames`, `onKick(name)`, `onAgentModeOff`, `participant_joined`/`participant_left` events with proper names
+  - Updated `src/commands/join.ts` — Fixed `role: "participant"`, `participantNames`, `source === "participant"` echo suppression
+  - Updated `src/client.ts` — Added `sendWhisper(targets, text)`, `sendChat(text, isAgentResponse?)`
+  - Updated `src/ui.ts` — Role type supports `"host" | "guest" | "participant"`
+  - Updated `src/__tests__/multi-participant.test.ts` — Added 1 new test: "routes whispers only to targeted participants"; fixed timing race in whisper test (register listeners before triggering join)
+  - Updated `src/__tests__/session-commands.test.ts` — Added tests for `/who`, `/kick <name>`, `/agent-mode off`, `parseWhisper` (24 total session-command tests)
+  - 200 total tests pass (11 multi-participant, 24 session-command)
+- **Next**: Phase 3 — Shared Claude Integration (multi-participant approval, conversation context, context-mode per participant)
 
 ### 2026-03-21 — Phase 1: Multi-Participant Server
 
