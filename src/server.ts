@@ -102,8 +102,9 @@ export class TeamClaudeServer extends EventEmitter {
         reason: `Session is full (max ${this.options.maxParticipants} participants)`,
         timestamp: Date.now(),
       };
-      ws.send(encrypt(JSON.stringify(payload), this.encryptionKey));
-      ws.close();
+      ws.send(encrypt(JSON.stringify(payload), this.encryptionKey), () => {
+        ws.close();
+      });
       return;
     }
 

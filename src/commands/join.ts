@@ -110,10 +110,12 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   // Dynamic participant list — initialized from join_accepted, updated on join/leave
   const knownParticipants: Array<{ name: string; role: string }> =
     (result.participants || []).map((p: any) => ({ name: p.name, role: p.role }));
+  ui.setParticipants(knownParticipants.map((p) => p.name));
 
   const cmdCtx: CommandContext = {
     ui,
     role: "participant",
+    hostName: result.hostUser,
     participantNames: () => knownParticipants.map((p) => p.name),
     startTime: sessionStartTime,
     onLeave: async () => {
@@ -138,6 +140,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         if (p && !knownParticipants.find((k) => k.name === p.name)) {
           knownParticipants.push({ name: p.name, role: p.role });
         }
+        ui.setParticipants(knownParticipants.map((k) => k.name));
         ui.showPartnerJoined(p.name);
         break;
       }
@@ -145,6 +148,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         const p = (msg as any).participant;
         const idx = knownParticipants.findIndex((k) => k.name === p.name);
         if (idx !== -1) knownParticipants.splice(idx, 1);
+        ui.setParticipants(knownParticipants.map((k) => k.name));
         ui.showPartnerLeft(p.name);
         break;
       }
@@ -247,10 +251,20 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       client.sendPrompt(prompt);
     } else {
       // Check for whisper (@name message)
-      const whisper = parseWhisper(text, knownParticipants.map((p) => p.name));
+      const participantNameList = knownParticipants.map((p) => p.name);
+      const whisper = parseWhisper(text, participantNameList);
       if (whisper) {
         ui.showSystem(`[whisper → ${whisper.targets.join(", ")}] ${whisper.text}`);
         client.sendWhisper(whisper.targets, whisper.text);
+      } else if (text.startsWith("@") && !text.startsWith("@claude")) {
+        // Warn about unknown @name to avoid accidental public messages
+        const atMatch = text.match(/^@(\S+)/);
+        if (atMatch) {
+          ui.showError(`Unknown participant "@${atMatch[1]}". Message not sent. Use /who to see participants.`);
+        } else {
+          ui.showUserPrompt(options.name, text, "guest", "chat");
+          client.sendChat(text);
+        }
       } else {
         // Regular chat message
         ui.showUserPrompt(options.name, text, "guest", "chat");

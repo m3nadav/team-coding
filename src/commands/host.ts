@@ -4,7 +4,7 @@ import { PromptRouter } from "../router.js";
 import { TerminalUI } from "../ui.js";
 import { getLocalIP, formatConnectionInfo, startCloudflareTunnel, startLocaltunnel, type ConnectionInfo } from "../connection.js";
 import { SessionManager } from "../session.js";
-import { handleSlashCommand, type CommandContext } from "./session-commands.js";
+import { handleSlashCommand, parseWhisper, type CommandContext } from "./session-commands.js";
 import { parseSessionHistory, getProjectSessionDir } from "../history.js";
 import { createOffer } from "../peer.js";
 import { copyToClipboard } from "../clipboard.js";
@@ -36,6 +36,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     sessionCode: session.code,
     approvalMode,
   });
+  server.registerHost();
 
   const claude = new ClaudeBridge({
     continue: options.continueSession,
@@ -163,6 +164,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     }
   }
 
+  ui.setParticipants(server.getParticipantNames());
   ui.startInputLoop();
   ui.showHint("Type a message to chat, or @claude <prompt> to ask Claude. /help for commands.");
 
@@ -188,6 +190,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui,
     role: "host",
     sessionCode: session.code,
+    hostName: options.name,
     participantNames: () => server.getParticipantNames(),
     startTime: sessionStartTime,
     onLeave: async () => {
@@ -229,6 +232,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   server.on("participant_joined", async (user: string) => {
     sessionManager.addGuest(session.code, user);
+    ui.setParticipants(server.getParticipantNames());
     ui.showPartnerJoined(user);
 
     // Send session history to guest if resuming an existing session
@@ -256,6 +260,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   server.on("participant_left", (user: string) => {
+    ui.setParticipants(server.getParticipantNames());
     ui.showPartnerLeft(user || "participant");
   });
 
@@ -316,15 +321,44 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       ui.showClaudeThinking();
       router.handlePrompt(msg);
     } else {
-      // Chat message — broadcast to guest, don't send to Claude
-      ui.showUserPrompt(options.name, text, "host", "chat");
-      server.broadcast({
-        type: "chat_received",
-        user: options.name,
-        text,
-        source: "host",
-        timestamp: Date.now(),
-      });
+      // Check for whisper (@name message)
+      const participantNameList = server.getParticipantNames();
+      const whisper = parseWhisper(text, participantNameList);
+      if (whisper) {
+        ui.showSystem(`[whisper → ${whisper.targets.join(", ")}] ${whisper.text}`);
+        server.injectLocalMessage({
+          type: "whisper",
+          id: `host-w-${Date.now()}`,
+          targets: whisper.targets,
+          text: whisper.text,
+          timestamp: Date.now(),
+        });
+      } else if (text.startsWith("@") && !text.startsWith("@claude")) {
+        // Warn about unknown @name to avoid accidental public messages
+        const atMatch = text.match(/^@(\S+)/);
+        if (atMatch) {
+          ui.showError(`Unknown participant "@${atMatch[1]}". Message not sent. Use /who to see participants.`);
+        } else {
+          ui.showUserPrompt(options.name, text, "host", "chat");
+          server.broadcast({
+            type: "chat_received",
+            user: options.name,
+            text,
+            source: "host",
+            timestamp: Date.now(),
+          });
+        }
+      } else {
+        // Chat message — broadcast to all, don't send to Claude
+        ui.showUserPrompt(options.name, text, "host", "chat");
+        server.broadcast({
+          type: "chat_received",
+          user: options.name,
+          text,
+          source: "host",
+          timestamp: Date.now(),
+        });
+      }
     }
   });
 

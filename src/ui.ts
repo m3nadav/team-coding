@@ -21,9 +21,17 @@ export class TerminalUI {
   private claudeStreaming = false;
   private claudeProcessing = false;
   private cursorPos = 0;
+  private participantNames: string[] = [];
 
   constructor(options: TerminalUIOptions) {
     this.options = options;
+  }
+
+  /**
+   * Update the list of known participant names for @name autocomplete.
+   */
+  setParticipants(names: string[]): void {
+    this.participantNames = names;
   }
 
   private sessionText(text: string): string {
@@ -63,6 +71,8 @@ export class TerminalUI {
       { trigger: "/le", completion: "/leave", display: "/leave" },
       { trigger: "/lea", completion: "/leave", display: "/leave" },
       { trigger: "/leav", completion: "/leave", display: "/leave" },
+      { trigger: "/w", completion: "/who", display: "/who" },
+      { trigger: "/wh", completion: "/who", display: "/who" },
     ];
 
     if (this.options.role === "host") {
@@ -78,10 +88,25 @@ export class TerminalUI {
         { trigger: "/appro", completion: "/approval", display: "/approval" },
         { trigger: "/approv", completion: "/approval", display: "/approval" },
         { trigger: "/approva", completion: "/approval", display: "/approval" },
-        { trigger: "/k", completion: "/kick", display: "/kick" },
-        { trigger: "/ki", completion: "/kick", display: "/kick" },
-        { trigger: "/kic", completion: "/kick", display: "/kick" },
+        { trigger: "/k", completion: "/kick ", display: "/kick <name>" },
+        { trigger: "/ki", completion: "/kick ", display: "/kick <name>" },
+        { trigger: "/kic", completion: "/kick ", display: "/kick <name>" },
       );
+    }
+
+    // Dynamic @name completions for whispers — exclude self and "claude"
+    for (const name of this.participantNames) {
+      if (name.toLowerCase() === "claude") continue;
+      if (name === this.options.userName) continue;
+      const atName = `@${name} `;
+      const display = `@${name} <whisper>`;
+      // Generate prefix triggers: @, @a, @al, @ali, @alic, @alice
+      for (let i = 1; i <= name.length; i++) {
+        const trigger = `@${name.slice(0, i).toLowerCase()}`;
+        // Don't override @claude completions
+        if (trigger.startsWith("@c")) continue;
+        suggestions.push({ trigger, completion: atName, display });
+      }
     }
 
     return suggestions;

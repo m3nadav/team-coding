@@ -9,6 +9,7 @@ function createMockContext(overrides?: Partial<CommandContext>): CommandContext 
     } as any,
     role: "host",
     sessionCode: "cd-test123",
+    hostName: "host",
     participantNames: () => ["host", "alice", "bob"],
     startTime: Date.now() - 120000, // 2 minutes ago
     onLeave: vi.fn(),

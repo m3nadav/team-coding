@@ -4,6 +4,7 @@ export interface CommandContext {
   ui: TerminalUI;
   role: "host" | "participant";
   sessionCode?: string;
+  hostName?: string;
   participantNames?: () => string[];
   startTime?: number;
   onLeave: () => void;
@@ -188,7 +189,8 @@ function showWho(ctx: CommandContext): void {
     ui.showSystem("  (no participants)");
   } else {
     for (const name of names) {
-      ui.showSystem(`  • ${name}`);
+      const label = name === ctx.hostName ? " (host)" : "";
+      ui.showSystem(`  • ${name}${label}`);
     }
   }
   ui.showSystem("");
