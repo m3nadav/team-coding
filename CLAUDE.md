@@ -39,6 +39,42 @@ Multi-participant collaborative coding session platform, forked from [claude-due
 - Each commit should include implementation + updated docs.
 - Use descriptive commit messages referencing the phase/task.
 
+### Publishing to npm
+
+To publish a new version publicly so users can run `npx team-coding ...`:
+
+1. **Bump the version** in `package.json` following semver:
+   - Patch (`0.x.1`) — bug fixes
+   - Minor (`0.x.0`) — new features, backwards-compatible
+   - Major (`x.0.0`) — breaking changes
+   ```bash
+   npm version patch   # or minor / major
+   ```
+   This updates `package.json`, commits the version bump, and creates a git tag.
+
+2. **Build** the TypeScript:
+   ```bash
+   npm run build
+   ```
+
+3. **Publish** to the public npm registry:
+   ```bash
+   npm publish --access public
+   ```
+
+4. **Push** the version commit and tag:
+   ```bash
+   git push && git push --tags
+   ```
+
+After publishing, users can start or join sessions immediately with:
+```bash
+npx team-coding host
+npx team-coding join <session-code> --password <password>
+```
+
+> **Note:** You must be logged in to npm (`npm login`) and have publish rights to the `team-coding` package before running `npm publish`.
+
 ## Build & Test
 
 ```bash
