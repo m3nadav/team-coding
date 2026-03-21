@@ -22,6 +22,8 @@ export class TerminalUI {
   private claudeProcessing = false;
   private cursorPos = 0;
   private participantNames: string[] = [];
+  private localClaudeStreaming = false;
+  private localClaudeActive = false;
 
   constructor(options: TerminalUIOptions) {
     this.options = options;
@@ -535,6 +537,43 @@ export class TerminalUI {
 
   onApproval(handler: (promptId: string, approved: boolean) => void): void {
     this.approvalHandler = handler;
+  }
+
+  // -------------------------------------------------------------------------
+  // Local Claude (private, --with-claude)
+  // -------------------------------------------------------------------------
+
+  showLocalClaudeStatus(active: boolean): void {
+    this.localClaudeActive = active;
+    this.clearInputLine();
+    if (active) {
+      console.log(pc.dim(`  [local claude: active]`));
+    } else {
+      console.log(pc.dim(`  [local claude: stopped]`));
+    }
+    this.restoreInputLine();
+  }
+
+  showLocalClaudeChunk(text: string): void {
+    if (!this.localClaudeStreaming) {
+      this.clearInputLine();
+      this.localClaudeStreaming = true;
+      process.stdout.write(`\n  ${pc.magenta("\u2726")} ${pc.bold(pc.magenta("your claude"))}\n`);
+    }
+    process.stdout.write(text);
+  }
+
+  showLocalClaudeTurnComplete(cost: number, durationMs: number): void {
+    this.clearInputLine();
+    this.localClaudeStreaming = false;
+    console.log(pc.dim(`\n  ${pc.magenta("\u2726")} $${cost.toFixed(4)} \u00b7 ${(durationMs / 1000).toFixed(1)}s (local)`));
+    this.restoreInputLine();
+  }
+
+  showLocalClaudeError(message: string): void {
+    this.clearInputLine();
+    console.error(pc.magenta(`  [local claude] ${message}`));
+    this.restoreInputLine();
   }
 
   close(): void {

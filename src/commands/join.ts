@@ -4,11 +4,13 @@ import { handleSlashCommand, parseWhisper, type CommandContext } from "./session
 import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
+import { LocalClaude } from "../local-claude.js";
 
 interface JoinOptions {
   name: string;
   password?: string;
   url?: string;
+  withClaude?: boolean;
 }
 
 export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptions): Promise<void> {
@@ -100,9 +102,43 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   if (result.approvalMode) {
     ui.showSystem("Approval mode is ON — host will review your prompts.");
   }
+
+  // Spawn local Claude if requested
+  let localClaude: LocalClaude | undefined;
+  if (options.withClaude) {
+    localClaude = new LocalClaude(process.cwd());
+    localClaude.on("event", (event: any) => {
+      switch (event.type) {
+        case "stream_chunk":
+          ui.showLocalClaudeChunk(event.text);
+          break;
+        case "tool_use":
+          // Local tool use — show dimly
+          ui.showSystem(`  [local: ${event.tool}]`);
+          break;
+        case "turn_complete":
+          ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
+          break;
+        case "error":
+          ui.showLocalClaudeError(event.message);
+          break;
+      }
+    });
+    localClaude.start().then(() => {
+      ui.showLocalClaudeStatus(true);
+    }).catch((err: Error) => {
+      ui.showLocalClaudeError(`Failed to start local Claude: ${err.message}`);
+      localClaude = undefined;
+    });
+  }
+
   console.log("");
   ui.startInputLoop();
-  ui.showHint("Type a message to chat, or @claude <prompt> to ask Claude. /help for commands.");
+  ui.showHint(
+    options.withClaude
+      ? "Type a message to chat, @claude <prompt> for shared Claude, /think <prompt> for private Claude."
+      : "Type a message to chat, or @claude <prompt> to ask Claude. /help for commands."
+  );
 
   let messageCount = 0;
   const sessionStartTime = Date.now();
@@ -127,6 +163,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         messageCount,
       });
       peerCleanup?.();
+      await localClaude?.stop();
       await client.disconnect();
       ui.close();
       process.exit(0);
@@ -134,6 +171,19 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
     onContextModeChange: (mode) => {
       client.sendContextModeChange(mode);
     },
+    onThink: options.withClaude
+      ? (prompt) => {
+          if (!localClaude) {
+            ui.showLocalClaudeError("Local Claude failed to start. Check that the claude CLI is available.");
+            return;
+          }
+          if (localClaude.isBusy()) {
+            ui.showLocalClaudeError("Local Claude is busy. Wait for the current response to finish.");
+            return;
+          }
+          localClaude.sendPrompt(prompt);
+        }
+      : undefined,
   };
 
   client.on("message", (msg) => {
@@ -285,6 +335,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
     ui.showSystem("The host has ended the session.");
     ui.showHint("Tip: Resume this Claude Code session solo with: claude --continue");
     peerCleanup?.();
+    localClaude?.stop();
     ui.close();
     process.exit(0);
   });
@@ -298,6 +349,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       messageCount,
     });
     peerCleanup?.();
+    await localClaude?.stop();
     await client.disconnect();
     ui.close();
     process.exit(0);

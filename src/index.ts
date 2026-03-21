@@ -47,6 +47,7 @@ program
   .option("-n, --name <name>", "your display name")
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
+  .option("--with-claude", "spawn a private local Claude for /think and /private commands")
   .action(async (sessionCodeOrOffer, options) => {
     if (!options.password) {
       console.error("Error: --password is required");
@@ -59,6 +60,7 @@ program
       name: options.name ?? config.name ?? process.env.USER ?? "guest",
       password: options.password,
       url: options.url,
+      withClaude: options.withClaude ?? false,
     });
   });
 

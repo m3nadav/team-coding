@@ -154,6 +154,54 @@ describe("session commands", () => {
     expect(calls).toContain("Unknown command");
     expect(calls).toContain("/foobar");
   });
+
+  describe("/think and /private", () => {
+    it("/think calls onThink with the prompt", () => {
+      const onThink = vi.fn();
+      const ctx = createMockContext({ onThink });
+      expect(handleSlashCommand("/think what is this function?", ctx)).toBe(true);
+      expect(onThink).toHaveBeenCalledWith("what is this function?");
+    });
+
+    it("/private is an alias for /think", () => {
+      const onThink = vi.fn();
+      const ctx = createMockContext({ onThink });
+      expect(handleSlashCommand("/private brainstorm alternatives", ctx)).toBe(true);
+      expect(onThink).toHaveBeenCalledWith("brainstorm alternatives");
+    });
+
+    it("/think with no prompt shows usage", () => {
+      const onThink = vi.fn();
+      const ctx = createMockContext({ onThink });
+      handleSlashCommand("/think", ctx);
+      expect(onThink).not.toHaveBeenCalled();
+      const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(calls).toContain("Usage:");
+    });
+
+    it("/think without local claude shows 'not available' message", () => {
+      const ctx = createMockContext({ onThink: undefined });
+      expect(handleSlashCommand("/think something", ctx)).toBe(true);
+      const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(calls).toContain("--with-claude");
+    });
+
+    it("/help shows /think command when onThink is set", () => {
+      const onThink = vi.fn();
+      const ctx = createMockContext({ onThink });
+      handleSlashCommand("/help", ctx);
+      const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(calls).toContain("/think");
+      expect(calls).toContain("/private");
+    });
+
+    it("/help hides /think command when onThink is not set", () => {
+      const ctx = createMockContext({ onThink: undefined });
+      handleSlashCommand("/help", ctx);
+      const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(calls).not.toContain("/think");
+    });
+  });
 });
 
 describe("parseWhisper", () => {

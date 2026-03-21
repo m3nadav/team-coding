@@ -1,5 +1,21 @@
 # team-claude Progress
 
+## Status: Phase 4 Complete
+
+### 2026-03-21 — Phase 4: Private Local Claude Code
+
+- **Phase**: Phase 4 (complete)
+- **Summary**:
+  - Created `src/local-claude.ts` — `LocalClaude` class wrapping `ClaudeBridge` with simplified API: `start()`, `sendPrompt(text)` (sends as "you" — no broadcast, purely local), `isBusy()`, `isStarted()`, `stop()`; re-emits all bridge events to its own `EventEmitter` listeners
+  - Updated `src/index.ts` — Added `--with-claude` flag to `join` command
+  - Updated `src/commands/join.ts` — Accepts `withClaude` option; spawns `LocalClaude` after connecting, wires its events to `ui.showLocalClaudeChunk`/`showLocalClaudeTurnComplete`/`showLocalClaudeError`; shows status on start; updates hint text; adds `onThink` to `cmdCtx` (checks `localClaude` at call time for safe async start failure handling); cleans up on `/leave`, disconnect, and SIGINT
+  - Updated `src/commands/session-commands.ts` — Added `onThink?: (prompt: string) => void` to `CommandContext`; handles `/think <prompt>` and `/private <prompt>` commands (alias); shows "not available" message when `onThink` is not set (i.e., `--with-claude` not passed); `/help` dynamically shows `/think`/`/private` only when local Claude is available
+  - Updated `src/ui.ts` — Added `showLocalClaudeChunk()` (streams with magenta `◆ your claude` header), `showLocalClaudeTurnComplete()`, `showLocalClaudeError()`, `showLocalClaudeStatus()` (shows `[local claude: active/stopped]`)
+  - Created `src/__tests__/local-claude.test.ts` — 10 tests: ClaudeBridge construction, idempotent start, sendPrompt attribution, isBusy delegation, isStarted state, stop cleanup, event re-emission
+  - Updated `src/__tests__/session-commands.test.ts` — Added 6 `/think`/`/private` tests: calls onThink, /private alias, no-prompt usage, missing local claude message, /help shows /think when active, /help hides when inactive
+  - 224 total tests pass (17 new)
+- **Next**: Phase 5 — Agent Mode (`/agent-mode`, auto-forward incoming chat to local Claude, rate limiting, loop prevention)
+
 ## Status: Phase 3 Complete
 
 ### 2026-03-21 — Phase 3: Shared Claude Integration

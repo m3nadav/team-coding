@@ -12,6 +12,7 @@ export interface CommandContext {
   onKick?: (name: string) => void;
   onAgentModeOff?: (name: string) => void;
   onContextModeChange?: (mode: "full" | "prompt-only") => void;
+  onThink?: (prompt: string) => void;
 }
 
 /**
@@ -103,6 +104,21 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
       return true;
     }
 
+    case "think":
+    case "private": {
+      const prompt = parts.slice(1).join(" ").trim();
+      if (!prompt) {
+        ctx.ui.showSystem(`Usage: /${cmd} <prompt>`);
+        return true;
+      }
+      if (!ctx.onThink) {
+        ctx.ui.showSystem("Local Claude is not available. Join with --with-claude to enable /think.");
+        return true;
+      }
+      ctx.onThink(prompt);
+      return true;
+    }
+
     default:
       ctx.ui.showSystem(`Unknown command: /${cmd}. Type /help for available commands.`);
       return true;
@@ -167,6 +183,10 @@ function showHelp(ctx: CommandContext): void {
   }
   ui.showSystem("");
   ui.showSystem("  /context-mode <full|prompt-only> — Set Claude prompt context mode");
+  if (ctx.onThink) {
+    ui.showSystem("  /think <prompt>   — Ask your private local Claude (never shared)");
+    ui.showSystem("  /private <prompt> — Alias for /think");
+  }
   ui.showSystem("");
   ui.showSystem("Message prefixes:");
   ui.showSystem("  @claude <msg>     — Send prompt to shared Claude");
