@@ -181,11 +181,9 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       case "whisper_received": {
         const w = msg as any;
         const fromMe = w.sender?.name === options.name;
-        if (fromMe) {
-          ui.showSystem(`[whisper → ${(w.targets as string[]).join(", ")}] ${w.text}`);
-        } else {
-          ui.showSystem(`[whisper from ${w.sender?.name}] ${w.text}`);
-        }
+        // Skip echo — already shown locally when the message was sent
+        if (fromMe) break;
+        ui.showSystem(`[whisper from ${w.sender?.name}] ${w.text}`);
         break;
       }
       case "approval_status":

@@ -272,12 +272,18 @@ export class TeamClaudeServer extends EventEmitter {
     }
 
     if (isTypingMessage(msg)) {
-      this.emit("server_message", {
-        type: "typing_indicator",
-        user: sender.name,
-        isTyping: msg.isTyping,
-        timestamp: Date.now(),
-      });
+      // Broadcast to all other participants (including host via server_message).
+      // broadcast() already calls emit("server_message") internally, so the host
+      // receives it without needing a separate emit.
+      this.broadcast(
+        {
+          type: "typing_indicator",
+          user: sender.name,
+          isTyping: msg.isTyping,
+          timestamp: Date.now(),
+        } as ServerMessage,
+        [sender.id],
+      );
       return;
     }
 
