@@ -1,5 +1,26 @@
 # team-claude Progress
 
+## Status: Post-Phase 4 Polish
+
+### 2026-03-21 — Whisper display style
+
+- **Summary**:
+  - Updated `src/ui.ts` — Added `showWhisper(direction, user, targets, text, senderRole)`: incoming whispers render as `alice[whisper]:` in bold yellow/cyan (matching regular chat colors); outgoing as `you[whisper → alice]:` in dim (matching self-message style)
+  - Updated `src/commands/join.ts` — Replaced `ui.showSystem("[whisper from/→ ...]")` calls with `ui.showWhisper()`
+  - Updated `src/commands/host.ts` — Same replacement for outgoing; added `whisper_received` handling in `server_message` listener so the host now sees incoming whispers directed at them
+  - 243 tests pass (unchanged)
+
+### 2026-03-21 — Targeted typing indicators for whispers
+
+- **Summary**:
+  - Updated `src/protocol.ts` — Added `targets?: string[]` to `TypingMessage`
+  - Updated `src/server.ts` — `routeMessage` for typing: sends `typing_indicator` only to named targets when `targets` is set; suppresses when `targets === []`; added `sendToByName(name, msg)` helper
+  - Updated `src/client.ts` — `sendTyping(isTyping, targets?)` accepts optional targets
+  - Updated `src/ui.ts` — Added `getCurrentInput()` returning current line buffer; backspace now fires `keystrokeHandler` so target resolution re-evaluates when `@name` is deleted
+  - Updated `src/commands/session-commands.ts` — Exported `resolveTypingTargets(input, participantNames)`: returns `null` (broadcast), `[]` (suppress — `@` prefix but target unresolved), or `string[]` (targeted whisper)
+  - Updated `src/commands/join.ts` and `src/commands/host.ts` — Replaced `isTyping` bool with `currentTyping: { targets } | null`; stop+restart when targets change mid-compose
+  - 243 tests pass (8 new for `resolveTypingTargets`)
+
 ## Status: Phase 4 Complete
 
 ### 2026-03-21 — Phase 4: Private Local Claude Code
