@@ -499,6 +499,8 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui.showSessionSummary({
       duration: `${minutes}m ${seconds}s`,
       messageCount,
+      cost: totalCost || undefined,
+      resumeSessionId: claudeSessionId,
     });
     connInfo?.cleanup?.();
     peerCleanup?.();
