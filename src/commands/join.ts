@@ -230,6 +230,9 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   let agentResponseBuffer = "";
   let agentTurnWhisperTarget: string | null = null;
 
+  // Reply tracking — last participant who whispered us
+  let lastWhisperer: string | undefined;
+
   // Shared Claude response accumulator — added to context on turn_complete
   let sharedClaudeBuffer = "";
 
@@ -339,6 +342,14 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
     isAgentMode: options.withClaude ? () => agentModeEnabled : undefined,
     getLocalSessionId: options.withClaude ? () => localSessionId : undefined,
     isLocalSessionResumed: options.withClaude ? () => isResuming : undefined,
+    onReply: (message) => {
+      if (!lastWhisperer) {
+        ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");
+        return;
+      }
+      ui.showWhisper("outgoing", options.name, [lastWhisperer], message, "guest");
+      client.sendWhisper([lastWhisperer], message);
+    },
   };
 
   client.on("message", (msg) => {
@@ -416,6 +427,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         const fromMe = w.sender?.name === options.name;
         // Skip echo — already shown locally when the message was sent
         if (fromMe) break;
+        lastWhisperer = w.sender?.name;
         ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
 
         // Agent mode: auto-respond to whispers with a whisper back to the sender

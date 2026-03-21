@@ -215,6 +215,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   let messageCount = 0;
   const sessionStartTime = Date.now();
 
+  // Reply tracking — last participant who whispered the host
+  let lastWhisperer: string | undefined;
+
   // Build command context for slash commands
   const cmdCtx: CommandContext = {
     ui,
@@ -257,6 +260,20 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       if (!result) {
         ui.showSystem(`Could not disable agent mode for "${name}" — not found or not in agent mode.`);
       }
+    },
+    onReply: (message) => {
+      if (!lastWhisperer) {
+        ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");
+        return;
+      }
+      ui.showWhisper("outgoing", options.name, [lastWhisperer], message, "host");
+      server.injectLocalMessage({
+        type: "whisper",
+        id: `host-w-${Date.now()}`,
+        targets: [lastWhisperer],
+        text: message,
+        timestamp: Date.now(),
+      });
     },
     getContextMode: () => router.getContextMode(),
     onContextModeChange: (mode) => {
@@ -446,6 +463,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       const w = msg as any;
       // Skip echo of our own outgoing whispers (already shown locally)
       if (w.sender?.name !== options.name) {
+        lastWhisperer = w.sender?.name;
         ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
       }
     }

@@ -1,5 +1,16 @@
 # team-claude Progress
 
+## Status: Phase 7 Complete (/reply command)
+
+### 2026-03-21 — Phase 7: /reply Command
+
+- **Summary**:
+  - `src/commands/join.ts` — Declared `lastWhisperer: string | undefined`; set it in `whisper_received` handler; wired `onReply` in `cmdCtx`: shows outgoing whisper and calls `client.sendWhisper([lastWhisperer], message)`
+  - `src/commands/host.ts` — Same: declared `lastWhisperer`, set in `whisper_received` case of `server_message` listener, wired `onReply` in `cmdCtx` using `server.injectLocalMessage`
+  - `src/__tests__/session-commands.test.ts` — Added 5 tests for `/reply`/`/r`: calls `onReply`, `/r` alias, no-message shows usage, no `onReply` shows "no whisper" message, `/help` shows `/reply`
+  - 254 tests pass (5 new)
+- **Next**: All planned phases complete
+
 ## Status: Phase 5 Complete + Polish
 
 ### 2026-03-21 — README rewrite

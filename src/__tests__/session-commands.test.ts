@@ -292,6 +292,45 @@ describe("session commands", () => {
     });
   });
 
+  describe("/reply and /r", () => {
+    it("/reply calls onReply with the message", () => {
+      const onReply = vi.fn();
+      const ctx = createMockContext({ onReply });
+      expect(handleSlashCommand("/reply hello back", ctx)).toBe(true);
+      expect(onReply).toHaveBeenCalledWith("hello back");
+    });
+
+    it("/r is an alias for /reply", () => {
+      const onReply = vi.fn();
+      const ctx = createMockContext({ onReply });
+      expect(handleSlashCommand("/r thanks!", ctx)).toBe(true);
+      expect(onReply).toHaveBeenCalledWith("thanks!");
+    });
+
+    it("/reply with no message shows usage", () => {
+      const onReply = vi.fn();
+      const ctx = createMockContext({ onReply });
+      handleSlashCommand("/reply", ctx);
+      expect(onReply).not.toHaveBeenCalled();
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("Usage:");
+    });
+
+    it("/reply without onReply shows 'no whisper to reply to' message", () => {
+      const ctx = createMockContext({ onReply: undefined });
+      expect(handleSlashCommand("/reply hey", ctx)).toBe(true);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("No whisper to reply to");
+    });
+
+    it("/help shows /reply command for all roles", () => {
+      const ctx = createMockContext({ role: "host" });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("/reply");
+    });
+  });
+
   describe("/think and /private", () => {
     it("/think calls onThink with the prompt", () => {
       const onThink = vi.fn();
