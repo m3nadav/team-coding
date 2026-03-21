@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.claude-duet/
+.test-session/
+.DS_Store
+.superset/
