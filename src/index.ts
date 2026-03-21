@@ -22,14 +22,15 @@ program
   .option("-c, --continue", "resume most recent Claude Code session")
   .option("--resume <id>", "resume a specific Claude Code session by ID")
   .option("--permission-mode <mode>", "permission mode: auto (default) or interactive")
-  .action(async (options) => {
+  .action(async (options, cmd) => {
     console.log("  Starting session...");
     const { hostCommand } = await import("./commands/host.js");
     const config = loadConfig();
     const tunnelFlag = options.tunnel === true ? "localtunnel" : options.tunnel;
     const tunnel = tunnelFlag || config.tunnel;
+    const nameExplicit = cmd.getOptionValueSource("name") === "cli";
     hostCommand({
-      name: options.name !== process.env.USER ? options.name : (config.name || options.name),
+      name: nameExplicit ? options.name : (config.name || options.name),
       noApproval: !options.approval || config.approvalMode === false,
       tunnel,
       relay: options.relay || config.relay,
@@ -43,7 +44,7 @@ program
 program
   .command("join <session-code-or-offer>")
   .description("Join an existing team-claude session (session code or P2P offer code)")
-  .option("-n, --name <name>", "your display name", process.env.USER || "guest")
+  .option("-n, --name <name>", "your display name")
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
   .action(async (sessionCodeOrOffer, options) => {
@@ -55,7 +56,7 @@ program
     const { joinCommand } = await import("./commands/join.js");
     const config = loadConfig();
     joinCommand(sessionCodeOrOffer, {
-      name: options.name !== (process.env.USER || "guest") ? options.name : (config.name || options.name),
+      name: options.name ?? config.name ?? process.env.USER ?? "guest",
       password: options.password,
       url: options.url,
     });

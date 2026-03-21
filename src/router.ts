@@ -25,7 +25,9 @@ export class PromptRouter {
   }
 
   async handlePrompt(msg: PromptMessage): Promise<void> {
-    const isHost = msg.source === "host";
+    // Prefer sender.role (server-validated identity) when present; fall back to
+    // source for host-originated messages, which are injected locally without a sender.
+    const isHost = (msg.sender?.role ?? msg.source) === "host";
 
     // Broadcast that prompt was received (include source so the sender can skip their own echo)
     this.server.broadcast({

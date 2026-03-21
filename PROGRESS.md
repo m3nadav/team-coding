@@ -1,6 +1,14 @@
 # team-claude Progress
 
-## Status: Phase 2 Complete
+## Status: Phase 2 Complete (bug fixes applied)
+
+### 2026-03-21 — Bug Fixes: --name heuristic and approval mode identity
+
+- **Phase**: Post-Phase 2 bug fixes
+- **Summary**:
+  - `src/index.ts` (join command) — Removed `process.env.USER || "guest"` default from `--name` option so `options.name` is `undefined` when not passed. Name resolution is now `options.name ?? config.name ?? process.env.USER ?? "guest"`, fixing a bug where an explicitly passed name matching the system username was incorrectly treated as "not provided" and overridden by `config.name`.
+  - `src/router.ts` — Changed `isHost` check from `msg.source === "host"` to `(msg.sender?.role ?? msg.source) === "host"`. `sender.role` is the server-validated identity set in `routeMessage()` for all participant messages; falls back to `source` for host-originated prompts (injected locally, no `sender`). Prevents any possibility of clients spoofing host identity via a crafted `source` field.
+- **Next**: Phase 3 — Shared Claude Integration (multi-participant approval, conversation context, context-mode per participant)
 
 ### 2026-03-21 — Phase 2: Chat with Ordering & Whispers
 
