@@ -5,7 +5,7 @@ import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
 import { LocalClaude } from "../local-claude.js";
-import { loadUserConfig, saveUserConfig } from "../config.js";
+import { loadUserConfig, loadProjectConfig, saveProjectConfig } from "../config.js";
 
 interface JoinOptions {
   name: string;
@@ -145,7 +145,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   let localResumeId: string | undefined = options.resumeSession;
   let localUseContinue = false;
   if (options.withClaude && !localResumeId) {
-    const saved = loadUserConfig().lastLocalSessionId;
+    const saved = loadProjectConfig().lastLocalSessionId ?? loadUserConfig().lastLocalSessionId;
     if (saved) {
       localResumeId = saved; // auto-resume by default
     } else if (options.continueSession) {
@@ -170,7 +170,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           if (!localSessionId) {
             // Only show message and save config on first init — session_init fires every turn
             localSessionId = event.sessionId;
-            saveUserConfig({ lastLocalSessionId: event.sessionId });
+            saveProjectConfig({ lastLocalSessionId: event.sessionId });
             ui.showSystem(
               isResuming
                 ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
