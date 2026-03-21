@@ -5,15 +5,12 @@ import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
 import { LocalClaude } from "../local-claude.js";
-import { loadUserConfig, loadProjectConfig, saveProjectConfig } from "../config.js";
 
 interface JoinOptions {
   name: string;
   password?: string;
   url?: string;
   withClaude?: boolean;
-  continueSession?: boolean;
-  resumeSession?: string;
   debug?: boolean;
 }
 
@@ -137,29 +134,12 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
     ui.showSystem("Approval mode is ON — host will review your prompts.");
   }
 
-  // Spawn local Claude if requested
+  // Spawn local Claude if requested — always fresh, lives for the duration of this session
   let localClaude: LocalClaude | undefined;
   let localSessionId: string | undefined;
 
-  // Determine resume target: explicit flag wins, otherwise auto-resume last known session
-  let localResumeId: string | undefined = options.resumeSession;
-  let localUseContinue = false;
-  if (options.withClaude && !localResumeId) {
-    const saved = loadProjectConfig().lastLocalSessionId ?? loadUserConfig().lastLocalSessionId;
-    if (saved) {
-      localResumeId = saved; // auto-resume by default
-    } else if (options.continueSession) {
-      localUseContinue = true; // first run with --continue and no saved ID
-    }
-  }
-  const isResuming = !!(localResumeId || localUseContinue);
-
   if (options.withClaude) {
-    localClaude = new LocalClaude({
-      cwd: process.cwd(),
-      resume: localResumeId,
-      continue: localUseContinue,
-    });
+    localClaude = new LocalClaude({ cwd: process.cwd() });
     localClaude.on("event", (event: any) => {
       switch (event.type) {
         case "stream_chunk":
@@ -168,14 +148,8 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           break;
         case "session_init":
           if (!localSessionId) {
-            // Only show message and save config on first init — session_init fires every turn
             localSessionId = event.sessionId;
-            saveProjectConfig({ lastLocalSessionId: event.sessionId });
-            ui.showSystem(
-              isResuming
-                ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
-                : `Started local Claude session ${event.sessionId.slice(0, 8)}… (will auto-resume next time)`
-            );
+            ui.showSystem("Local Claude ready.");
           }
           break;
         case "tool_use":
@@ -353,7 +327,6 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       : undefined,
     isAgentMode: options.withClaude ? () => agentModeEnabled : undefined,
     getLocalSessionId: options.withClaude ? () => localSessionId : undefined,
-    isLocalSessionResumed: options.withClaude ? () => isResuming : undefined,
     onReply: (message) => {
       if (!lastWhisperer) {
         ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");

@@ -38,8 +38,6 @@ describe("LocalClaude", () => {
     expect(MockClaudeBridge).toHaveBeenCalledWith({
       cwd: "/some/cwd",
       permissionMode: "auto",
-      continue: undefined,
-      resume: undefined,
     });
   });
 
@@ -48,8 +46,6 @@ describe("LocalClaude", () => {
     expect(MockClaudeBridge).toHaveBeenCalledWith({
       cwd: process.cwd(),
       permissionMode: "auto",
-      continue: undefined,
-      resume: undefined,
     });
   });
 

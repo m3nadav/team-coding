@@ -17,7 +17,6 @@ export interface CommandContext {
   onAgentModeToggle?: (enabled: boolean) => void;
   isAgentMode?: () => boolean;
   getLocalSessionId?: () => string | undefined;
-  isLocalSessionResumed?: () => boolean;
   onReply?: (message: string) => void;
 }
 
@@ -169,11 +168,7 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
         ctx.ui.showSystem("Local Claude session not yet initialized.");
         return true;
       }
-      const resumed = ctx.isLocalSessionResumed?.() ?? false;
-      ctx.ui.showSystem(`Local Claude session: ${sid.slice(0, 8)}… (${resumed ? "resumed" : "fresh"})`);
-      if (!resumed) {
-        ctx.ui.showSystem("Tip: join with --continue next time to resume this session");
-      }
+      ctx.ui.showSystem(`Local Claude session: ${sid.slice(0, 8)}…`);
       return true;
     }
 

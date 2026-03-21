@@ -9,10 +9,9 @@ export interface TeamClaudeConfig {
   tunnel?: "localtunnel" | "cloudflare";
   relay?: string;
   permissionMode?: "auto" | "interactive";
-  lastLocalSessionId?: string;
 }
 
-const CONFIG_KEYS: (keyof TeamClaudeConfig)[] = ["name", "approvalMode", "port", "tunnel", "relay", "permissionMode", "lastLocalSessionId"];
+const CONFIG_KEYS: (keyof TeamClaudeConfig)[] = ["name", "approvalMode", "port", "tunnel", "relay", "permissionMode"];
 
 export function getUserConfigPath(): string {
   return join(homedir(), ".config", "team-claude", "config.json");

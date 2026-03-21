@@ -50,8 +50,6 @@ program
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
   .option("--with-claude", "spawn a private local Claude for /think and /private commands")
-  .option("-c, --continue", "resume your most recent local Claude session (implies --with-claude)")
-  .option("--resume <id>", "resume a specific local Claude session by ID (implies --with-claude)")
   .option("--debug", "print debug logs to stderr (ws events, message types, errors)")
   .action(async (sessionCodeOrOffer, options) => {
     if (!options.password) {
@@ -65,9 +63,7 @@ program
       name: options.name ?? config.name ?? process.env.USER ?? "guest",
       password: options.password,
       url: options.url,
-      withClaude: options.withClaude || options.continue || !!options.resume,
-      continueSession: options.continue ?? false,
-      resumeSession: options.resume,
+      withClaude: options.withClaude ?? false,
       debug: options.debug ?? false,
     });
   });

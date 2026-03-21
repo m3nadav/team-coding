@@ -9,8 +9,6 @@ import { ClaudeBridge, type ClaudeEvent } from "./claude.js";
 
 export interface LocalClaudeOptions {
   cwd?: string;
-  continue?: boolean;
-  resume?: string;
 }
 
 export class LocalClaude extends EventEmitter {
@@ -22,8 +20,6 @@ export class LocalClaude extends EventEmitter {
     this.bridge = new ClaudeBridge({
       cwd: options.cwd ?? process.cwd(),
       permissionMode: "auto",
-      continue: options.continue,
-      resume: options.resume,
     });
   }
 
