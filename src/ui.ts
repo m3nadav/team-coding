@@ -557,7 +557,7 @@ export class TerminalUI {
     this.restoreInputLine();
   }
 
-  showSessionSummary(summary: { duration: string; messageCount: number; cost?: number }): void {
+  showSessionSummary(summary: { duration: string; messageCount: number; cost?: number; resumeSessionId?: string }): void {
     this.clearInputLine();
     console.log("");
     console.log(pc.bold(`  ${this.claudeStar()} Session ended`));
@@ -565,6 +565,11 @@ export class TerminalUI {
     console.log(this.sessionText(`  Messages: ${summary.messageCount}`));
     if (summary.cost !== undefined && summary.cost > 0) {
       console.log(this.sessionText(`  Cost: $${summary.cost.toFixed(4)}`));
+    }
+    if (summary.resumeSessionId) {
+      console.log("");
+      console.log(pc.dim(`  To continue this Claude session solo:`));
+      console.log(pc.cyan(`  claude --resume ${summary.resumeSessionId}`));
     }
     console.log("");
   }
