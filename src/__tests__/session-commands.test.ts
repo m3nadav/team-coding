@@ -155,6 +155,98 @@ describe("session commands", () => {
     expect(calls).toContain("/foobar");
   });
 
+  describe("/context-mode", () => {
+    it("host: sets mode and confirms it controls shared Claude", () => {
+      const onContextModeChange = vi.fn();
+      const ctx = createMockContext({ role: "host", onContextModeChange });
+      handleSlashCommand("/context-mode full", ctx);
+      expect(onContextModeChange).toHaveBeenCalledWith("full");
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("shared Claude");
+      expect(out).toContain("include");
+    });
+
+    it("host: prompt-only says skip", () => {
+      const onContextModeChange = vi.fn();
+      const ctx = createMockContext({ role: "host", onContextModeChange });
+      handleSlashCommand("/context-mode prompt-only", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("skip");
+    });
+
+    it("participant with onThink: sets mode and confirms it controls local Claude", () => {
+      const onContextModeChange = vi.fn();
+      const ctx = createMockContext({ role: "participant", onContextModeChange, onThink: vi.fn() });
+      handleSlashCommand("/context-mode full", ctx);
+      expect(onContextModeChange).toHaveBeenCalledWith("full");
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("local Claude");
+    });
+
+    it("participant without onThink: shows --with-claude message, does not call onContextModeChange", () => {
+      const onContextModeChange = vi.fn();
+      const ctx = createMockContext({ role: "participant", onContextModeChange, onThink: undefined });
+      handleSlashCommand("/context-mode full", ctx);
+      expect(onContextModeChange).not.toHaveBeenCalled();
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("--with-claude");
+    });
+
+    it("no argument shows current mode with ✓ marker on active option (host)", () => {
+      const ctx = createMockContext({ role: "host", getContextMode: () => "full" });
+      handleSlashCommand("/context-mode", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("[full] ✓");
+      expect(out).toContain("prompt-only");
+      expect(out).not.toContain("[prompt-only]");
+    });
+
+    it("no argument shows current mode with ✓ on prompt-only when active", () => {
+      const ctx = createMockContext({ role: "host", getContextMode: () => "prompt-only" });
+      handleSlashCommand("/context-mode", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("[prompt-only] ✓");
+      expect(out).not.toContain("[full]");
+    });
+
+    it("no argument defaults to full when getContextMode not wired", () => {
+      const ctx = createMockContext({ role: "host" });
+      handleSlashCommand("/context-mode", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("[full] ✓");
+    });
+
+    it("invalid value shows usage", () => {
+      const ctx = createMockContext({ role: "host" });
+      handleSlashCommand("/context-mode invalid", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("Usage:");
+    });
+
+    it("/help shows context-mode for host with 'shared Claude' description", () => {
+      const ctx = createMockContext({ role: "host" });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("/context-mode");
+      expect(out).toContain("shared Claude");
+    });
+
+    it("/help shows context-mode for participant with onThink, mentions local Claude", () => {
+      const ctx = createMockContext({ role: "participant", onThink: vi.fn() });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("/context-mode");
+      expect(out).toContain("local Claude");
+    });
+
+    it("/help hides context-mode for participant without onThink", () => {
+      const ctx = createMockContext({ role: "participant", onThink: undefined });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).not.toContain("/context-mode");
+    });
+  });
+
   describe("/think and /private", () => {
     it("/think calls onThink with the prompt", () => {
       const onThink = vi.fn();
@@ -186,9 +278,9 @@ describe("session commands", () => {
       expect(calls).toContain("--with-claude");
     });
 
-    it("/help shows /think command when onThink is set", () => {
+    it("/help shows /think command when participant has onThink", () => {
       const onThink = vi.fn();
-      const ctx = createMockContext({ onThink });
+      const ctx = createMockContext({ role: "participant", onThink });
       handleSlashCommand("/help", ctx);
       const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(calls).toContain("/think");
@@ -196,7 +288,7 @@ describe("session commands", () => {
     });
 
     it("/help hides /think command when onThink is not set", () => {
-      const ctx = createMockContext({ onThink: undefined });
+      const ctx = createMockContext({ role: "participant", onThink: undefined });
       handleSlashCommand("/help", ctx);
       const calls = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(calls).not.toContain("/think");

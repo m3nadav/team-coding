@@ -185,7 +185,6 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   let messageCount = 0;
   const sessionStartTime = Date.now();
-  let hostContextMode: "full" | "prompt-only" = "full";
 
   // Build command context for slash commands
   const cmdCtx: CommandContext = {
@@ -230,10 +229,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         ui.showSystem(`Could not disable agent mode for "${name}" — not found or not in agent mode.`);
       }
     },
+    getContextMode: () => router.getContextMode(),
     onContextModeChange: (mode) => {
-      hostContextMode = mode;
-      // Also update the registry so getParticipantList reflects the mode
-      server.injectLocalMessage({ type: "context_mode_change", mode, timestamp: Date.now() });
+      router.setContextMode(mode);
     },
   };
 
@@ -322,7 +320,6 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         user: options.name,
         text: prompt,
         source: "host" as const,
-        contextMode: hostContextMode,
         timestamp: Date.now(),
       };
       ui.showUserPrompt(options.name, prompt, "host", "claude");

@@ -12,6 +12,7 @@ export interface CommandContext {
   onKick?: (name: string) => void;
   onAgentModeOff?: (name: string) => void;
   onContextModeChange?: (mode: "full" | "prompt-only") => void;
+  getContextMode?: () => "full" | "prompt-only";
   onThink?: (prompt: string) => void;
 }
 
@@ -94,13 +95,26 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
     }
 
     case "context-mode": {
+      if (ctx.role !== "host" && !ctx.onThink) {
+        ctx.ui.showSystem("Context mode is only available when running with --with-claude.");
+        return true;
+      }
       const mode = parts[1]?.toLowerCase();
+      if (!mode) {
+        // No argument — show current mode with selection indicator
+        const current = ctx.getContextMode?.() ?? "full";
+        const mark = (m: string) => m === current ? `[${m}] ✓` : m;
+        const target = ctx.role === "host" ? "shared Claude" : "your local Claude (/think)";
+        ctx.ui.showSystem(`Context mode for ${target}: ${mark("full")} | ${mark("prompt-only")}`);
+        return true;
+      }
       if (mode !== "full" && mode !== "prompt-only") {
         ctx.ui.showSystem("Usage: /context-mode full|prompt-only");
         return true;
       }
       ctx.onContextModeChange?.(mode as "full" | "prompt-only");
-      ctx.ui.showSystem(`Context mode set to: ${mode}`);
+      const target = ctx.role === "host" ? "shared Claude" : "your local Claude (/think)";
+      ctx.ui.showSystem(`Context mode set to: ${mode} — ${target} will ${mode === "full" ? "include" : "skip"} team chat context`);
       return true;
     }
 
@@ -182,8 +196,10 @@ function showHelp(ctx: CommandContext): void {
     ui.showSystem("  /agent-mode off <name> — Disable a participant's agent mode");
   }
   ui.showSystem("");
-  ui.showSystem("  /context-mode <full|prompt-only> — Set Claude prompt context mode");
-  if (ctx.onThink) {
+  if (ctx.role === "host") {
+    ui.showSystem("  /context-mode <full|prompt-only> — Include/skip team chat context in shared Claude prompts");
+  } else if (ctx.onThink) {
+    ui.showSystem("  /context-mode <full|prompt-only> — Include/skip team chat context in your /think prompts");
     ui.showSystem("  /think <prompt>   — Ask your private local Claude (never shared)");
     ui.showSystem("  /private <prompt> — Alias for /think");
   }

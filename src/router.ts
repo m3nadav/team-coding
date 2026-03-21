@@ -30,6 +30,7 @@ export class PromptRouter {
   private chatHistory: ChatEntry[] = [];
   private lastClaudeResponseIndex = 0;
   private promptQueue: QueuedPrompt[] = [];
+  private contextMode: "full" | "prompt-only" = "full";
 
   constructor(claude: ClaudeBridge, server: TeamClaudeServer, options: RouterOptions) {
     this.claude = claude;
@@ -143,12 +144,19 @@ export class PromptRouter {
   }
 
   private sendToClaudeWithContext(msg: PromptMessage, isHost: boolean): void {
-    const contextMode = msg.contextMode ?? "full";
-    const contextPrefix = contextMode === "full" ? this.buildContextPrefix() : "";
+    const contextPrefix = this.contextMode === "full" ? this.buildContextPrefix() : "";
     const fullText = contextPrefix
       ? `${contextPrefix}[Prompt from ${msg.user}]\n${msg.text}`
       : msg.text;
     this.claude.sendPrompt(msg.user, fullText, { isHost });
+  }
+
+  setContextMode(mode: "full" | "prompt-only"): void {
+    this.contextMode = mode;
+  }
+
+  getContextMode(): "full" | "prompt-only" {
+    return this.contextMode;
   }
 
   private processQueue(): void {

@@ -143,6 +143,21 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   let messageCount = 0;
   const sessionStartTime = Date.now();
 
+  // Local context mode for /think — controls whether chat history is prepended
+  let localContextMode: "full" | "prompt-only" = "full";
+  const localChatHistory: Array<{ user: string; text: string }> = [];
+
+  function addToLocalChatHistory(user: string, text: string): void {
+    localChatHistory.push({ user, text });
+    if (localChatHistory.length > 500) localChatHistory.shift();
+  }
+
+  function buildLocalContextPrefix(): string {
+    if (localChatHistory.length === 0) return "";
+    const lines = localChatHistory.map((e) => `${e.user}: ${e.text}`).join("\n");
+    return `[Team chat context]\n${lines}\n\n`;
+  }
+
   // Dynamic participant list — initialized from join_accepted, updated on join/leave
   const knownParticipants: Array<{ name: string; role: string }> =
     (result.participants || []).map((p: any) => ({ name: p.name, role: p.role }));
@@ -168,8 +183,9 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       ui.close();
       process.exit(0);
     },
+    getContextMode: () => localContextMode,
     onContextModeChange: (mode) => {
-      client.sendContextModeChange(mode);
+      localContextMode = mode;
     },
     onThink: options.withClaude
       ? (prompt) => {
@@ -181,7 +197,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             ui.showLocalClaudeError("Local Claude is busy. Wait for the current response to finish.");
             return;
           }
-          localClaude.sendPrompt(prompt);
+          const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
+          const fullPrompt = contextPrefix
+            ? `${contextPrefix}[Your question]\n${prompt}`
+            : prompt;
+          localClaude.sendPrompt(fullPrompt);
         }
       : undefined,
   };
@@ -222,6 +242,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         break;
       }
       case "chat_received":
+        addToLocalChatHistory(msg.user, msg.text);
         // Skip own messages (already shown locally) — compare sender name, not source role
         if ((msg as any).sender?.name === options.name) break;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "chat");
@@ -318,6 +339,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         }
       } else {
         // Regular chat message
+        addToLocalChatHistory(options.name, text);
         ui.showUserPrompt(options.name, text, "guest", "chat");
         client.sendChat(text);
       }

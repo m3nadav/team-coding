@@ -270,13 +270,13 @@ describe("PromptRouter", () => {
     router.addChatMessage("alice", "the auth module is broken");
     router.addChatMessage("bob", "agreed, token refresh fails");
 
+    router.setContextMode("full");
     const msg: PromptMessage = {
       type: "prompt",
       id: "ctx-1",
       user: "charlie",
       text: "fix the auth module",
       source: "participant",
-      contextMode: "full",
       timestamp: Date.now(),
     };
 
@@ -299,13 +299,13 @@ describe("PromptRouter", () => {
     router.addChatMessage("alice", "some noise");
     router.addChatMessage("bob", "more noise");
 
+    router.setContextMode("prompt-only");
     const msg: PromptMessage = {
       type: "prompt",
       id: "ponly-1",
       user: "charlie",
       text: "fix auth",
       source: "participant",
-      contextMode: "prompt-only",
       timestamp: Date.now(),
     };
 
@@ -321,13 +321,13 @@ describe("PromptRouter", () => {
     const router = new PromptRouter(claude, server, { hostUser: "eliran", approvalMode: false });
 
     // No chat messages — context should be empty, prompt passes through unchanged
+    router.setContextMode("full");
     const msg: PromptMessage = {
       type: "prompt",
       id: "no-ctx-1",
       user: "alice",
       text: "fix the bug",
       source: "participant",
-      contextMode: "full",
       timestamp: Date.now(),
     };
 
@@ -358,9 +358,10 @@ describe("PromptRouter", () => {
     router.addChatMessage("bob", "new message after response");
 
     // Second prompt — should only see the new chat
+    router.setContextMode("full");
     const msg2: PromptMessage = {
       type: "prompt", id: "p2", user: "alice", text: "help", source: "participant",
-      contextMode: "full", timestamp: Date.now(),
+      timestamp: Date.now(),
     };
     await router.handlePrompt(msg2);
 
