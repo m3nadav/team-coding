@@ -140,17 +140,25 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   // Spawn local Claude if requested
   let localClaude: LocalClaude | undefined;
   let localSessionId: string | undefined;
-  const isResuming = !!(options.continueSession || options.resumeSession);
+
+  // Determine resume target: explicit flag wins, otherwise auto-resume last known session
+  let localResumeId: string | undefined = options.resumeSession;
+  let localUseContinue = false;
+  if (options.withClaude && !localResumeId) {
+    const saved = loadUserConfig().lastLocalSessionId;
+    if (saved) {
+      localResumeId = saved; // auto-resume by default
+    } else if (options.continueSession) {
+      localUseContinue = true; // first run with --continue and no saved ID
+    }
+  }
+  const isResuming = !!(localResumeId || localUseContinue);
 
   if (options.withClaude) {
-    let resumeId = options.resumeSession;
-    if (options.continueSession && !resumeId) {
-      resumeId = loadUserConfig().lastLocalSessionId;
-    }
     localClaude = new LocalClaude({
       cwd: process.cwd(),
-      resume: resumeId,
-      continue: options.continueSession && !resumeId,
+      resume: localResumeId,
+      continue: localUseContinue,
     });
     localClaude.on("event", (event: any) => {
       switch (event.type) {
@@ -164,7 +172,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           ui.showSystem(
             isResuming
               ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
-              : `Started fresh local Claude session ${event.sessionId.slice(0, 8)}… (use --continue next time to resume)`
+              : `Started local Claude session ${event.sessionId.slice(0, 8)}… (will auto-resume next time)`
           );
           break;
         case "tool_use":
