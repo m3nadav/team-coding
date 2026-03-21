@@ -11,12 +11,43 @@ interface JoinOptions {
   password?: string;
   url?: string;
   withClaude?: boolean;
+  debug?: boolean;
+}
+
+function makeDebugLogger(enabled: boolean): (msg: string) => void {
+  if (!enabled) return () => {};
+  return (msg: string) => {
+    const ts = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+    process.stderr.write(`[${ts}] [debug] ${msg}\n`);
+  };
 }
 
 export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptions): Promise<void> {
+  const debug = makeDebugLogger(options.debug ?? false);
+
+  // Global safety net: show error clearly before exit instead of a silent crash.
+  // These run AFTER the normal handlers, so only fire for genuinely unhandled cases.
+  process.on("uncaughtException", (err) => {
+    debug(`uncaughtException: ${err.stack ?? err.message}`);
+    process.stderr.write(`\n[team-claude] Unexpected error: ${err.message}\n`);
+    if (options.debug) process.stderr.write(`${err.stack}\n`);
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    debug(`unhandledRejection: ${stack ?? msg}`);
+    process.stderr.write(`\n[team-claude] Unhandled error: ${msg}\n`);
+    if (options.debug && stack) process.stderr.write(`${stack}\n`);
+    process.exit(1);
+  });
+
+  debug(`join started name=${options.name} debug=${options.debug} withClaude=${options.withClaude}`);
+
   const ui = new TerminalUI({ userName: options.name, role: "participant" });
 
   const client = new TeamClaudeClient();
+  client.setDebugLogger(debug);
   let result: Awaited<ReturnType<typeof client.connect>>;
   let peerCleanup: (() => void) | undefined;
 
@@ -347,6 +378,13 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   });
 
   client.on("disconnected", () => {
+    debug("disconnected event received");
+    // Cancel any pending typing timeout — if it fires after disconnect it would
+    // call sendTyping() on a closed socket, which previously threw and crashed.
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = undefined;
+    }
     const elapsed = Date.now() - sessionStartTime;
     const minutes = Math.floor(elapsed / 60000);
     const seconds = Math.floor((elapsed % 60000) / 1000);

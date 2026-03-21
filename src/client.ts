@@ -7,11 +7,18 @@ import type { DuetTransport } from "./transport.js";
 
 const DEFAULT_JOIN_TIMEOUT_MS = 5000;
 
+export type DebugLogger = (msg: string) => void;
+
 export class TeamClaudeClient extends EventEmitter {
   private ws?: WebSocket;
   private transport?: DuetTransport;
   private user?: string;
   private encryptionKey?: Uint8Array;
+  private debug: DebugLogger = () => {};
+
+  setDebugLogger(fn: DebugLogger): void {
+    this.debug = fn;
+  }
 
   async connect(
     url: string,
@@ -44,6 +51,7 @@ export class TeamClaudeClient extends EventEmitter {
       this.ws = new WebSocket(url);
 
       this.ws.on("open", () => {
+        this.debug(`ws open → ${url}`);
         const joinMsg: ClientMessage = {
           type: "join",
           user,
@@ -57,6 +65,7 @@ export class TeamClaudeClient extends EventEmitter {
         try {
           const decrypted = decrypt(data.toString(), this.encryptionKey!);
           const msg = JSON.parse(decrypted) as ServerMessage;
+          this.debug(`ws recv (handshake): ${msg.type}`);
 
           if (msg.type === "join_accepted") {
             settle(() => {
@@ -71,13 +80,18 @@ export class TeamClaudeClient extends EventEmitter {
             settle(() => reject(new Error(msg.reason)));
             return;
           }
-        } catch {
+        } catch (err) {
+          this.debug(`ws recv error (handshake): ${err}`);
           settle(() => reject(new Error("Malformed response from server")));
         }
       });
 
-      this.ws.on("error", (err) => settle(() => reject(err)));
-      this.ws.on("close", () => {
+      this.ws.on("error", (err) => {
+        this.debug(`ws error: ${err.message}`);
+        settle(() => reject(err));
+      });
+      this.ws.on("close", (code, reason) => {
+        this.debug(`ws close: code=${code} reason=${reason.toString() || "(none)"}`);
         settle(() => reject(new Error("Connection closed before join completed")));
         this.emit("disconnected");
       });
@@ -157,8 +171,10 @@ export class TeamClaudeClient extends EventEmitter {
     try {
       const decrypted = decrypt(data.toString(), this.encryptionKey!);
       const msg = JSON.parse(decrypted) as ServerMessage;
+      this.debug(`ws recv: ${msg.type}`);
       this.emit("message", msg);
-    } catch {
+    } catch (err) {
+      this.debug(`ws recv error: ${err}`);
       // Ignore malformed or undecryptable messages
     }
   }
@@ -167,19 +183,26 @@ export class TeamClaudeClient extends EventEmitter {
     try {
       const decrypted = decrypt(data, this.encryptionKey!);
       const msg = JSON.parse(decrypted) as ServerMessage;
+      this.debug(`transport recv: ${msg.type}`);
       this.emit("message", msg);
-    } catch {
+    } catch (err) {
+      this.debug(`transport recv error: ${err}`);
       // Ignore malformed or undecryptable messages
     }
   }
 
   private sendEncrypted(msg: ClientMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.debug(`ws send: ${msg.type}`);
       this.ws.send(encrypt(JSON.stringify(msg), this.encryptionKey!));
     } else if (this.transport?.isOpen()) {
+      this.debug(`transport send: ${msg.type}`);
       this.transport.send(encrypt(JSON.stringify(msg), this.encryptionKey!));
     } else {
-      throw new Error("Not connected");
+      // Not connected — drop silently. The "disconnected" event handles cleanup.
+      // We must not throw here: callers (typing timeouts, input handlers) are not
+      // inside try/catch and an uncaught throw would crash the process.
+      this.debug(`send dropped (not connected): ${msg.type}`);
     }
   }
 

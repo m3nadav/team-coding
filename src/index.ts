@@ -22,6 +22,7 @@ program
   .option("-c, --continue", "resume most recent Claude Code session")
   .option("--resume <id>", "resume a specific Claude Code session by ID")
   .option("--permission-mode <mode>", "permission mode: auto (default) or interactive")
+  .option("--debug", "print debug logs to stderr (ws events, message types, errors)")
   .action(async (options, cmd) => {
     console.log("  Starting session...");
     const { hostCommand } = await import("./commands/host.js");
@@ -38,6 +39,7 @@ program
       continueSession: options.continue || false,
       resumeSession: options.resume,
       permissionMode: options.permissionMode || config.permissionMode || "auto",
+      debug: options.debug ?? false,
     });
   });
 
@@ -48,6 +50,7 @@ program
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
   .option("--with-claude", "spawn a private local Claude for /think and /private commands")
+  .option("--debug", "print debug logs to stderr (ws events, message types, errors)")
   .action(async (sessionCodeOrOffer, options) => {
     if (!options.password) {
       console.error("Error: --password is required");
@@ -61,6 +64,7 @@ program
       password: options.password,
       url: options.url,
       withClaude: options.withClaude ?? false,
+      debug: options.debug ?? false,
     });
   });
 

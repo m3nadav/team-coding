@@ -20,9 +20,34 @@ interface HostOptions {
   continueSession?: boolean;
   resumeSession?: string;
   permissionMode?: PermissionMode;
+  debug?: boolean;
 }
 
 export async function hostCommand(options: HostOptions): Promise<void> {
+  const debugEnabled = options.debug ?? false;
+  const debug = (msg: string) => {
+    if (!debugEnabled) return;
+    const ts = new Date().toISOString().slice(11, 23);
+    process.stderr.write(`[${ts}] [debug] ${msg}\n`);
+  };
+
+  process.on("uncaughtException", (err) => {
+    debug(`uncaughtException: ${err.stack ?? err.message}`);
+    process.stderr.write(`\n[team-claude] Unexpected error: ${err.message}\n`);
+    if (debugEnabled) process.stderr.write(`${err.stack}\n`);
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    debug(`unhandledRejection: ${stack ?? msg}`);
+    process.stderr.write(`\n[team-claude] Unhandled error: ${msg}\n`);
+    if (debugEnabled && stack) process.stderr.write(`${stack}\n`);
+    process.exit(1);
+  });
+
+  debug(`host started name=${options.name}`);
+
   const sessionManager = new SessionManager();
   const session = sessionManager.create(options.name);
   const approvalMode = !options.noApproval;
@@ -46,6 +71,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   // Register event handler BEFORE start() to catch early errors
   claude.on("event", (event) => {
+    debug(`claude event: ${event.type}${event.type === "tool_use" ? ` (${event.tool})` : ""}`);
     switch (event.type) {
       case "stream_chunk":
         ui.showStreamChunk(event.text);
@@ -60,6 +86,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         server.broadcast({ ...event, timestamp: Date.now() });
         break;
       case "turn_complete":
+        debug(`turn_complete cost=$${event.cost.toFixed(4)} duration=${event.durationMs}ms`);
         ui.showTurnComplete(event.cost, event.durationMs);
         server.broadcast({ ...event, timestamp: Date.now() });
         break;
@@ -68,6 +95,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         server.broadcast({ type: "notice", message: event.message, timestamp: Date.now() });
         break;
       case "error":
+        debug(`claude error: ${event.message}`);
         ui.showError(event.message);
         server.broadcast({ type: "error", message: event.message, timestamp: Date.now() });
         break;
@@ -174,6 +202,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   server.on("prompt", (msg) => {
+    debug(`prompt from ${msg.user}: "${msg.text.slice(0, 60)}${msg.text.length > 60 ? "…" : ""}"`);
     ui.showUserPrompt(msg.user, msg.text, "guest", "claude");
     router.handlePrompt(msg);
   });
@@ -244,6 +273,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   };
 
   server.on("participant_joined", async (user: string) => {
+    debug(`participant joined: ${user} (total: ${server.getParticipantNames().length})`);
     sessionManager.addGuest(session.code, user);
     ui.setParticipants(server.getParticipantNames());
     ui.showPartnerJoined(user);
@@ -273,6 +303,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   server.on("participant_left", (user: string) => {
+    debug(`participant left: ${user} (remaining: ${server.getParticipantNames().length})`);
     ui.setParticipants(server.getParticipantNames());
     ui.showPartnerLeft(user || "participant");
   });
