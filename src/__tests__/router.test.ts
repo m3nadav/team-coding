@@ -46,7 +46,7 @@ describe("PromptRouter", () => {
       id: "1",
       user: "benji",
       text: "delete everything",
-      source: "guest",
+      source: "participant",
       timestamp: Date.now(),
     };
 
@@ -71,7 +71,7 @@ describe("PromptRouter", () => {
       id: "1",
       user: "benji",
       text: "fix the bug",
-      source: "guest",
+      source: "participant",
       timestamp: Date.now(),
     };
 
@@ -91,7 +91,7 @@ describe("PromptRouter", () => {
       id: "prompt-1",
       user: "benji",
       text: "fix the bug",
-      source: "guest",
+      source: "participant",
       timestamp: Date.now(),
     };
     await router.handlePrompt(msg);
@@ -112,7 +112,7 @@ describe("PromptRouter", () => {
       id: "prompt-1",
       user: "benji",
       text: "delete everything",
-      source: "guest",
+      source: "participant",
       timestamp: Date.now(),
     };
     await router.handlePrompt(msg);
@@ -132,7 +132,7 @@ describe("PromptRouter", () => {
       id: "spoof-1",
       user: "eliran",
       text: "rm -rf /",
-      source: "guest",
+      source: "participant",
       timestamp: Date.now(),
     };
 

@@ -1,6 +1,18 @@
 # team-claude Progress
 
-## Status: Phase 0 Complete
+## Status: Phase 1 Complete
+
+### 2026-03-21 — Phase 1: Multi-Participant Server
+
+- **Phase**: Phase 1 (complete)
+- **Summary**:
+  - Created `src/participant.ts` — `ParticipantRegistry` class with add/remove, name uniqueness (case-insensitive), lookup by id/name/ws, host/remote filtering, `toInfoList()`/`toIdentity()`, event emission
+  - Rewrote `src/protocol.ts` — Added `SenderInfo`, `ParticipantJoined`, `ParticipantLeft`, `WhisperMessage`, `WhisperReceived`, `AgentModeToggle`, `ContextModeChange`, `seq` field on all server messages, `participantId` + `participants[]` on `JoinAccepted`, replaced `"host"|"guest"` with `"host"|"participant"`, added type guards
+  - Rewrote `src/server.ts` — Replaced single-guest model with `ParticipantRegistry`, multi-WebSocket fan-out with `broadcast()` and `sendTo()`, `injectLocalMessage()` for host, `maxParticipants` enforcement, `kickParticipant(name)`, `disableAgentMode(name)`, whisper routing, agent/context mode handling, transport participant support, monotonic `seq` counter
+  - Updated all existing tests for "participant" source instead of "guest", new event names
+  - Created `src/__tests__/participant.test.ts` (16 tests) and `src/__tests__/multi-participant.test.ts` (10 tests)
+  - 188 total tests pass (26 new)
+- **Next**: Phase 2 — Chat with ordering & whispers
 
 ### 2026-03-21 — Phase 0: Fork & Scaffold
 

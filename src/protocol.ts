@@ -1,8 +1,19 @@
+import type { ParticipantIdentity, ParticipantInfo } from "./participant.js";
+
 // ---- Base ----
 
 export interface BaseMessage {
   type: string;
   timestamp: number;
+  seq?: number; // Server-assigned monotonic sequence number
+}
+
+// ---- Sender identity ----
+
+export interface SenderInfo {
+  id: string;
+  name: string;
+  role: "host" | "participant";
 }
 
 // ---- Client → Server ----
@@ -12,7 +23,8 @@ export interface PromptMessage extends BaseMessage {
   id: string;
   user: string;
   text: string;
-  source?: "host" | "guest";
+  source?: "host" | "participant";
+  sender?: SenderInfo;
 }
 
 export interface TypingMessage extends BaseMessage {
@@ -38,7 +50,28 @@ export interface ChatMessage extends BaseMessage {
   id: string;
   user: string;
   text: string;
-  source?: "host" | "guest";
+  source?: "host" | "participant";
+  sender?: SenderInfo;
+  isAgentResponse?: boolean;
+}
+
+export interface WhisperMessage extends BaseMessage {
+  type: "whisper";
+  id: string;
+  targets: string[]; // participant names
+  text: string;
+  sender?: SenderInfo;
+}
+
+export interface AgentModeToggle extends BaseMessage {
+  type: "agent_mode_toggle";
+  enabled: boolean;
+  participantId: string;
+}
+
+export interface ContextModeChange extends BaseMessage {
+  type: "context_mode_change";
+  mode: "full" | "prompt-only";
 }
 
 // ---- Server → Client(s) ----
@@ -48,6 +81,8 @@ export interface JoinAccepted extends BaseMessage {
   sessionId: string;
   hostUser: string;
   approvalMode: boolean;
+  participantId: string;
+  participants: ParticipantInfo[];
 }
 
 export interface JoinRejected extends BaseMessage {
@@ -55,12 +90,23 @@ export interface JoinRejected extends BaseMessage {
   reason: string;
 }
 
+export interface ParticipantJoined extends BaseMessage {
+  type: "participant_joined";
+  participant: ParticipantInfo;
+}
+
+export interface ParticipantLeft extends BaseMessage {
+  type: "participant_left";
+  participant: { id: string; name: string };
+}
+
 export interface PromptReceived extends BaseMessage {
   type: "prompt_received";
   promptId: string;
   user: string;
   text: string;
-  source?: "host" | "guest";
+  source?: "host" | "participant";
+  sender?: SenderInfo;
 }
 
 export interface ApprovalRequest extends BaseMessage {
@@ -95,7 +141,7 @@ export interface TurnComplete extends BaseMessage {
 
 export interface PresenceMessage extends BaseMessage {
   type: "presence";
-  users: Array<{ name: string; role: "host" | "guest" }>;
+  users: Array<{ name: string; role: "host" | "participant" }>;
 }
 
 export interface NoticeMessage extends BaseMessage {
@@ -112,7 +158,16 @@ export interface ChatReceived extends BaseMessage {
   type: "chat_received";
   user: string;
   text: string;
-  source?: "host" | "guest";
+  source?: "host" | "participant";
+  sender?: SenderInfo;
+  isAgentResponse?: boolean;
+}
+
+export interface WhisperReceived extends BaseMessage {
+  type: "whisper_received";
+  sender: SenderInfo;
+  targets: string[];
+  text: string;
 }
 
 export interface TypingIndicator extends BaseMessage {
@@ -150,11 +205,16 @@ export type ClientMessage =
   | TypingMessage
   | ApprovalResponse
   | JoinRequest
-  | ChatMessage;
+  | ChatMessage
+  | WhisperMessage
+  | AgentModeToggle
+  | ContextModeChange;
 
 export type ServerMessage =
   | JoinAccepted
   | JoinRejected
+  | ParticipantJoined
+  | ParticipantLeft
   | PromptReceived
   | ApprovalRequest
   | ApprovalStatusMessage
@@ -166,8 +226,10 @@ export type ServerMessage =
   | NoticeMessage
   | ErrorMessage
   | ChatReceived
+  | WhisperReceived
   | HistoryReplayMessage
-  | TypingIndicator;
+  | TypingIndicator
+  | AgentModeToggle;
 
 export type Message = ClientMessage | ServerMessage;
 
@@ -201,12 +263,24 @@ export function isChatMessage(msg: unknown): msg is ChatMessage {
   return isObject(msg) && msg.type === "chat";
 }
 
+export function isWhisperMessage(msg: unknown): msg is WhisperMessage {
+  return isObject(msg) && msg.type === "whisper";
+}
+
 export function isTypingMessage(msg: unknown): msg is TypingMessage {
   return isObject(msg) && msg.type === "typing";
 }
 
 export function isHistoryReplay(msg: unknown): msg is HistoryReplayMessage {
   return isObject(msg) && msg.type === "history_replay";
+}
+
+export function isAgentModeToggle(msg: unknown): msg is AgentModeToggle {
+  return isObject(msg) && msg.type === "agent_mode_toggle";
+}
+
+export function isContextModeChange(msg: unknown): msg is ContextModeChange {
+  return isObject(msg) && msg.type === "context_mode_change";
 }
 
 function isObject(val: unknown): val is Record<string, unknown> {

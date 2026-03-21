@@ -134,7 +134,7 @@ describe("TeamClaudeServer", () => {
 
     const msg = await promptReceived;
     expect(msg.user).toBe("benji");
-    expect(msg.source).toBe("guest");
+    expect(msg.source).toBe("participant");
     ws.close();
   });
 
@@ -180,7 +180,7 @@ describe("TeamClaudeServer", () => {
 
     const msg = await chatReceived;
     expect(msg.user).toBe("benji");
-    expect(msg.source).toBe("guest");
+    expect(msg.source).toBe("participant");
     ws.close();
   });
 

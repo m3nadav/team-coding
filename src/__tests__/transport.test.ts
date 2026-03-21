@@ -140,8 +140,8 @@ describe("transport-based server + client", () => {
 
     const joined: string[] = [];
     const left: boolean[] = [];
-    server.on("guest_joined", (user: string) => joined.push(user));
-    server.on("guest_left", () => left.push(true));
+    server.on("participant_joined", (user: string) => joined.push(user));
+    server.on("participant_left", () => left.push(true));
 
     client = new TeamClaudeClient();
     await client.connectTransport(guestSide, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
@@ -199,6 +199,6 @@ describe("transport-based server + client", () => {
 
     await new Promise((r) => setTimeout(r, 50));
     expect(prompts[0].user).toBe("benji");
-    expect(prompts[0].source).toBe("guest");
+    expect(prompts[0].source).toBe("participant");
   });
 });
