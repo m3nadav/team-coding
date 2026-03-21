@@ -1,0 +1,10 @@
+Session: cd-test123
+Host: eliran
+Duration: 0 minutes
+Turns: 0
+Cost: $0.0000
+Ended: host_ended
+
+--- Log ---
+[2026-03-21T14:08:05.520Z] Session started: cd-test123
+[2026-03-21T14:08:05.520Z] Session ended: host_ended
