@@ -1,5 +1,25 @@
 # team-claude Progress
 
+## Status: Post-Phase 7 Polish (continued)
+
+### 2026-03-21 — Fix session summary: cost, session ID, and SIGINT handler
+
+- `src/commands/host.ts`:
+  - Added `claudeSessionId` local var, captured on `session_init` event (more reliable than `getSessionId()` at exit time)
+  - Added `totalCost` accumulator, incremented on each `turn_complete` event
+  - All three exit paths (`onLeave`, SIGINT, and the second `onLeave` broadcast) now pass `cost` and `resumeSessionId` to `showSessionSummary`
+  - Fixed SIGINT handler which was missed by a prior `replace_all` and still showed the bare summary
+- `src/ui.ts` — `showSessionSummary` accepts optional `resumeSessionId`; when present, prints `claude --resume <id>` after the stats
+
+### 2026-03-21 — Simplify participant local Claude — always fresh, no persistence
+
+- Participants with `--with-claude` always start a fresh Claude process; it stays alive for the full join session and is reused for all `/think`, `/private`, and agent-mode prompts
+- Removed `--continue` / `--resume` flags from `join` command (host-only)
+- Removed `lastLocalSessionId` from config schema and all auto-resume logic from `join.ts`
+- Stripped `continue`/`resume` from `LocalClaudeOptions`; simplified `session_init` message to "Local Claude ready." (fires only once, guarded by `!localSessionId`)
+- Stored session ID per-project in `.team-claude.json` was also reverted — no persistence needed for participants
+- `src/__tests__/local-claude.test.ts` updated to match simplified constructor
+
 ## Status: Post-Phase 7 Polish
 
 ### 2026-03-21 — /reply magic expansion + typing suppression for slash commands
