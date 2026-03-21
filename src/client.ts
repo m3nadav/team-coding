@@ -247,6 +247,15 @@ export class TeamClaudeClient extends EventEmitter {
     });
   }
 
+  sendAgentModeToggle(enabled: boolean, participantId: string): void {
+    this.sendEncrypted({
+      type: "agent_mode_toggle",
+      enabled,
+      participantId,
+      timestamp: Date.now(),
+    });
+  }
+
   sendContextModeChange(mode: "full" | "prompt-only"): void {
     this.sendEncrypted({
       type: "context_mode_change",

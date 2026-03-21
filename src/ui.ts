@@ -123,6 +123,21 @@ export class TerminalUI {
       );
     }
 
+    // /agent-mode — only when local Claude is running
+    if (this.localClaudeActive) {
+      suggestions.push(
+        { trigger: "/ag", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/age", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agen", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent-", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent-m", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent-mo", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent-mod", completion: "/agent-mode", display: "/agent-mode" },
+        { trigger: "/agent-mode", completion: "/agent-mode", display: "/agent-mode" },
+      );
+    }
+
     // /think and /private — only when local Claude is running
     if (this.localClaudeActive) {
       suggestions.push(
@@ -427,7 +442,47 @@ export class TerminalUI {
     this.restoreInputLine();
   }
 
-  showUserPrompt(user: string, text: string, role: "host" | "guest" | "participant", mode: "chat" | "claude" = "chat"): void {
+  showConfirmation(message: string, onResult: (confirmed: boolean) => void): void {
+    this.clearInputLine();
+    console.log(pc.yellow(`  ${message} [y/N]`));
+
+    if (process.stdin.isTTY) {
+      if (this.rawMode && this.rawHandler) {
+        process.stdin.removeListener("data", this.rawHandler as any);
+      } else {
+        this.rl?.pause();
+        process.stdin.setRawMode(true);
+        process.stdin.resume();
+      }
+
+      const handler = (data: Buffer) => {
+        const key = data.toString().toLowerCase();
+        process.stdin.removeListener("data", handler);
+
+        if (this.rawMode && this.rawHandler) {
+          process.stdin.on("data", this.rawHandler as any);
+          this.showInputPrompt();
+        } else {
+          process.stdin.setRawMode(false);
+          this.rl?.resume();
+        }
+
+        if (key === "y") {
+          console.log(pc.green("  y"));
+        } else {
+          console.log(pc.dim("  n"));
+        }
+        onResult(key === "y");
+      };
+      process.stdin.on("data", handler);
+    } else {
+      // Non-TTY (tests, piped input): default to rejected
+      onResult(false);
+      this.restoreInputLine();
+    }
+  }
+
+  showUserPrompt(user: string, text: string, role: "host" | "guest" | "participant", mode: "chat" | "claude" | "agent" = "chat"): void {
     this.clearInputLine();
     const isSelf = role === this.options.role;
     const partnerColor = role === "host" ? pc.cyan : pc.yellow;
@@ -435,12 +490,16 @@ export class TerminalUI {
     if (isSelf) {
       if (mode === "claude") {
         console.log(`\n${pc.dim("you \u2192 \u2726 Claude:")}`);
+      } else if (mode === "agent") {
+        console.log(`\n${pc.dim("you[agent]:")}`);
       } else {
         console.log(`\n${pc.dim("you:")}`);
       }
     } else {
       if (mode === "claude") {
         console.log(`\n${pc.bold(partnerColor(user))} ${pc.dim("\u2192 \u2726 Claude:")}`);
+      } else if (mode === "agent") {
+        console.log(`\n${pc.bold(partnerColor(user))} ${pc.dim("[agent]:")}`);
       } else {
         console.log(`\n${pc.bold(partnerColor(user + ":"))}`);
       }

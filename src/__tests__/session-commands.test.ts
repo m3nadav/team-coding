@@ -138,6 +138,51 @@ describe("session commands", () => {
     expect(ctx.onAgentModeOff).toHaveBeenCalledWith("alice");
   });
 
+  describe("/agent-mode self-toggle", () => {
+    it("without --with-claude shows 'only available with --with-claude' message", () => {
+      const ctx = createMockContext({ role: "participant", onAgentModeToggle: undefined });
+      expect(handleSlashCommand("/agent-mode", ctx)).toBe(true);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("--with-claude");
+    });
+
+    it("calls onAgentModeToggle(true) for enable", () => {
+      const onAgentModeToggle = vi.fn();
+      const ctx = createMockContext({ role: "participant", onAgentModeToggle });
+      expect(handleSlashCommand("/agent-mode", ctx)).toBe(true);
+      expect(onAgentModeToggle).toHaveBeenCalledWith(true);
+    });
+
+    it("calls onAgentModeToggle(false) for /agent-mode off", () => {
+      const onAgentModeToggle = vi.fn();
+      const ctx = createMockContext({ role: "participant", onAgentModeToggle });
+      expect(handleSlashCommand("/agent-mode off", ctx)).toBe(true);
+      expect(onAgentModeToggle).toHaveBeenCalledWith(false);
+    });
+
+    it("host /agent-mode off <name> uses onAgentModeOff, not onAgentModeToggle", () => {
+      const onAgentModeToggle = vi.fn();
+      const ctx = createMockContext({ role: "host", onAgentModeToggle, onAgentModeOff: vi.fn() });
+      handleSlashCommand("/agent-mode off alice", ctx);
+      expect(onAgentModeToggle).not.toHaveBeenCalled();
+      expect(ctx.onAgentModeOff).toHaveBeenCalledWith("alice");
+    });
+
+    it("/help shows /agent-mode for participant with onThink and onAgentModeToggle", () => {
+      const ctx = createMockContext({ role: "participant", onThink: vi.fn(), onAgentModeToggle: vi.fn() });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("/agent-mode");
+    });
+
+    it("/help hides /agent-mode for participant without onThink", () => {
+      const ctx = createMockContext({ role: "participant", onThink: undefined });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).not.toContain("/agent-mode       —");
+    });
+  });
+
   it("/clear writes clear screen escape", () => {
     const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const ctx = createMockContext();

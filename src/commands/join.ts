@@ -142,16 +142,29 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       switch (event.type) {
         case "stream_chunk":
           ui.showLocalClaudeChunk(event.text);
+          if (isAgentTurn) agentResponseBuffer += event.text;
           break;
         case "tool_use":
-          // Local tool use — show dimly
           ui.showSystem(`  [local: ${event.tool}]`);
           break;
         case "turn_complete":
           ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
+          if (isAgentTurn) {
+            const response = agentResponseBuffer.trim();
+            isAgentTurn = false;
+            agentResponseBuffer = "";
+            if (response) {
+              lastAgentResponseTime = Date.now();
+              client.sendChat(response, true); // isAgentResponse = true
+            }
+          }
           break;
         case "error":
           ui.showLocalClaudeError(event.message);
+          if (isAgentTurn) {
+            isAgentTurn = false;
+            agentResponseBuffer = "";
+          }
           break;
       }
     });
@@ -167,7 +180,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   ui.startInputLoop();
   ui.showHint(
     options.withClaude
-      ? "Type a message to chat, @claude <prompt> for shared Claude, /think <prompt> for private Claude."
+      ? "Type a message to chat, @claude <prompt> for shared Claude, /think for private Claude, /agent-mode to auto-respond."
       : "Type a message to chat, or @claude <prompt> to ask Claude. /help for commands."
   );
 
@@ -177,6 +190,13 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   // Local context mode for /think — controls whether chat history is prepended
   let localContextMode: "full" | "prompt-only" = "full";
   const localChatHistory: Array<{ user: string; text: string }> = [];
+
+  // Agent mode state
+  let agentModeEnabled = false;
+  let lastAgentResponseTime = 0;
+  const AGENT_RATE_LIMIT_MS = 5000;
+  let isAgentTurn = false;
+  let agentResponseBuffer = "";
 
   function addToLocalChatHistory(user: string, text: string): void {
     localChatHistory.push({ user, text });
@@ -228,6 +248,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             ui.showLocalClaudeError("Local Claude is busy. Wait for the current response to finish.");
             return;
           }
+          // isAgentTurn stays false — manual /think never broadcasts to group chat
           const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
           const fullPrompt = contextPrefix
             ? `${contextPrefix}[Your question]\n${prompt}`
@@ -235,6 +256,39 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           localClaude.sendPrompt(fullPrompt);
         }
       : undefined,
+    onAgentModeToggle: options.withClaude
+      ? (enabled) => {
+          if (enabled) {
+            if (agentModeEnabled) {
+              ui.showSystem("Agent mode is already enabled. Use /agent-mode off to disable.");
+              return;
+            }
+            ui.showConfirmation(
+              "Enable agent mode? Your local Claude will auto-respond to all chat messages on your behalf.",
+              (confirmed) => {
+                if (!confirmed) {
+                  ui.showSystem("Agent mode not enabled.");
+                  return;
+                }
+                agentModeEnabled = true;
+                client.sendAgentModeToggle(true, result.participantId);
+                ui.showSystem("Agent mode enabled — local Claude will auto-respond to chat messages.");
+              },
+            );
+          } else {
+            if (!agentModeEnabled) {
+              ui.showSystem("Agent mode is not active.");
+              return;
+            }
+            agentModeEnabled = false;
+            isAgentTurn = false;
+            agentResponseBuffer = "";
+            client.sendAgentModeToggle(false, result.participantId);
+            ui.showSystem("Agent mode disabled.");
+          }
+        }
+      : undefined,
+    isAgentMode: options.withClaude ? () => agentModeEnabled : undefined,
   };
 
   client.on("message", (msg) => {
@@ -272,12 +326,36 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         ui.showSystem("Caught up! You're live.");
         break;
       }
-      case "chat_received":
+      case "chat_received": {
         addToLocalChatHistory(msg.user, msg.text);
         // Skip own messages (already shown locally) — compare sender name, not source role
         if ((msg as any).sender?.name === options.name) break;
-        ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "chat");
+        const isAgent = !!(msg as any).isAgentResponse;
+        ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", isAgent ? "agent" : "chat");
+
+        // Agent mode: auto-forward to local Claude (loop prevention + rate limit)
+        if (
+          agentModeEnabled &&
+          localClaude &&
+          !localClaude.isBusy() &&
+          !isAgent
+        ) {
+          const now = Date.now();
+          if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
+            const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
+            const fullPrompt = contextPrefix
+              ? `${contextPrefix}[Latest message from ${msg.user}]\n${msg.text}`
+              : `${msg.user}: ${msg.text}`;
+            isAgentTurn = true;
+            agentResponseBuffer = "";
+            localClaude.sendPrompt(fullPrompt);
+          } else {
+            const remaining = Math.ceil((AGENT_RATE_LIMIT_MS - (now - lastAgentResponseTime)) / 1000);
+            ui.showSystem(`[agent] Rate limit active — skipping response (${remaining}s remaining)`);
+          }
+        }
         break;
+      }
       case "prompt_received":
         // Skip own messages (already shown locally when typed)
         if ((msg as any).sender?.name === options.name) break;
@@ -311,6 +389,17 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           ui.showTypingIndicator((msg as any).user, (msg as any).isTyping);
         }
         break;
+      case "agent_mode_toggle": {
+        const toggle = msg as any;
+        // Remote disable from host — only act if addressed to this participant
+        if (toggle.participantId === result.participantId && !toggle.enabled) {
+          agentModeEnabled = false;
+          isAgentTurn = false;
+          agentResponseBuffer = "";
+          ui.showSystem("Host has disabled your agent mode.");
+        }
+        break;
+      }
       case "notice":
         ui.showSystem(msg.message);
         break;

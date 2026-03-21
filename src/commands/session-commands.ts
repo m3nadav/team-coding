@@ -14,6 +14,8 @@ export interface CommandContext {
   onContextModeChange?: (mode: "full" | "prompt-only") => void;
   getContextMode?: () => "full" | "prompt-only";
   onThink?: (prompt: string) => void;
+  onAgentModeToggle?: (enabled: boolean) => void;
+  isAgentMode?: () => boolean;
 }
 
 /**
@@ -85,13 +87,19 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
     }
 
     case "agent-mode": {
-      // Host can remotely disable: /agent-mode off <name>
+      // Host remote disable: /agent-mode off <name>
       if (parts[1]?.toLowerCase() === "off" && parts[2] && ctx.role === "host") {
         ctx.onAgentModeOff?.(parts[2]);
         return true;
       }
-      // Self-toggle handled by the caller (needs local claude context)
-      return false;
+      // Self-toggle requires --with-claude
+      if (!ctx.onAgentModeToggle) {
+        ctx.ui.showSystem("Agent mode is only available when running with --with-claude.");
+        return true;
+      }
+      const wantOff = parts[1]?.toLowerCase() === "off";
+      ctx.onAgentModeToggle(wantOff ? false : true);
+      return true;
     }
 
     case "context-mode": {
@@ -231,6 +239,8 @@ function showHelp(ctx: CommandContext): void {
     ui.showSystem("  /context-mode <full|prompt-only> — Include/skip team chat context in your /think prompts");
     ui.showSystem("  /think <prompt>   — Ask your private local Claude (never shared)");
     ui.showSystem("  /private <prompt> — Alias for /think");
+    ui.showSystem("  /agent-mode       — Auto-forward group chat to your local Claude and post its responses");
+    ui.showSystem("  /agent-mode off   — Disable agent mode");
   }
   ui.showSystem("");
   ui.showSystem("Message prefixes:");
