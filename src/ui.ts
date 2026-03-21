@@ -75,6 +75,33 @@ export class TerminalUI {
       { trigger: "/leav", completion: "/leave", display: "/leave" },
       { trigger: "/w", completion: "/who", display: "/who" },
       { trigger: "/wh", completion: "/who", display: "/who" },
+      // /context-mode (starts from /con to avoid conflict with /clear on /c, /cl)
+      { trigger: "/con", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/cont", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/conte", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/contex", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context-", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context-m", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context-mo", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context-mod", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      { trigger: "/context-mode", completion: "/context-mode ", display: "/context-mode <full|prompt-only>" },
+      // /context-mode value completions
+      { trigger: "/context-mode f", completion: "/context-mode full", display: "/context-mode full" },
+      { trigger: "/context-mode fu", completion: "/context-mode full", display: "/context-mode full" },
+      { trigger: "/context-mode ful", completion: "/context-mode full", display: "/context-mode full" },
+      { trigger: "/context-mode full", completion: "/context-mode full", display: "/context-mode full" },
+      { trigger: "/context-mode p", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode pr", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode pro", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prom", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode promp", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt-", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt-o", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt-on", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt-onl", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
+      { trigger: "/context-mode prompt-only", completion: "/context-mode prompt-only", display: "/context-mode prompt-only" },
     ];
 
     if (this.options.role === "host") {
