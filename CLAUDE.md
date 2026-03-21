@@ -15,10 +15,11 @@ Multi-participant collaborative coding session platform, forked from [claude-due
 ### Implementation
 
 - Follow the phased approach in the plan. Complete phases in order.
-- After completing each task, step, or phase:
-  1. Commit the implementation code.
+- After completing each phase:
+  1. Run tests (`npm test`) — all must pass.
   2. Update `PROGRESS.md` with what was completed.
-  3. Commit `PROGRESS.md` and any updated docs (`CLAUDE.md`, `README.md`, plan files) together with (or immediately after) the implementation commit.
+  3. Commit implementation + updated docs together.
+  4. **STOP. Do not proceed to the next phase.** Report what was completed and wait for explicit confirmation from the user before continuing.
 
 ### Testing
 
