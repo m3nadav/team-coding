@@ -17,6 +17,7 @@ export class TerminalUI {
   private lineBuffer = "";
   private rawHandler?: (data: Buffer) => void;
   private keystrokeHandler?: () => void;
+  private replyExpansion?: () => string | null;
   private typingUser?: string;
   private claudeStreaming = false;
   private claudeProcessing = false;
@@ -73,6 +74,11 @@ export class TerminalUI {
       { trigger: "/le", completion: "/leave", display: "/leave" },
       { trigger: "/lea", completion: "/leave", display: "/leave" },
       { trigger: "/leav", completion: "/leave", display: "/leave" },
+      { trigger: "/r", completion: "/reply ", display: "/reply <message>" },
+      { trigger: "/re", completion: "/reply ", display: "/reply <message>" },
+      { trigger: "/rep", completion: "/reply ", display: "/reply <message>" },
+      { trigger: "/repl", completion: "/reply ", display: "/reply <message>" },
+      { trigger: "/reply", completion: "/reply ", display: "/reply <message>" },
       { trigger: "/w", completion: "/who", display: "/who" },
       { trigger: "/wh", completion: "/who", display: "/who" },
       // /context-mode (starts from /con to avoid conflict with /clear on /c, /cl)
@@ -337,6 +343,19 @@ export class TerminalUI {
           if (code >= 32) {
             this.lineBuffer = this.lineBuffer.slice(0, this.cursorPos) + ch + this.lineBuffer.slice(this.cursorPos);
             this.cursorPos++;
+
+            // /reply<space> or /r<space> → expand to @name if a last whisperer is known
+            if (ch === " " && this.replyExpansion) {
+              const buf = this.lineBuffer;
+              if (buf === "/reply " || buf === "/r ") {
+                const name = this.replyExpansion();
+                if (name) {
+                  this.lineBuffer = `@${name} `;
+                  this.cursorPos = this.lineBuffer.length;
+                }
+              }
+            }
+
             this.redrawLine();
             this.keystrokeHandler?.();
           }
@@ -656,6 +675,14 @@ export class TerminalUI {
 
   onKeystroke(handler: () => void): void {
     this.keystrokeHandler = handler;
+  }
+
+  /**
+   * Register a callback that returns the @name to expand into when the user
+   * types "/reply " or "/r " — returns null if no last whisperer is known.
+   */
+  onReplyExpansion(fn: () => string | null): void {
+    this.replyExpansion = fn;
   }
 
   onInput(handler: (text: string) => void): void {

@@ -194,6 +194,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   ui.setParticipants(server.getParticipantNames());
   ui.startInputLoop();
+  ui.onReplyExpansion(() => lastWhisperer ?? null);
   ui.showHint("Type a message to chat, or @claude <prompt> to ask Claude. /help for commands.");
 
   const router = new PromptRouter(claude, server, {
@@ -354,6 +355,13 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   ui.onKeystroke(() => {
     const input = ui.getCurrentInput();
+
+    // Slash commands are private — never broadcast typing
+    if (input.startsWith("/")) {
+      stopTyping();
+      return;
+    }
+
     const newTargets = resolveTypingTargets(input, server.getParticipantNames());
 
     if (currentTyping !== null) {

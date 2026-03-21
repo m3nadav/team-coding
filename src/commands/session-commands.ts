@@ -18,6 +18,7 @@ export interface CommandContext {
   isAgentMode?: () => boolean;
   getLocalSessionId?: () => string | undefined;
   isLocalSessionResumed?: () => boolean;
+  onReply?: (message: string) => void;
 }
 
 /**
@@ -143,6 +144,21 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
       return true;
     }
 
+    case "reply":
+    case "r": {
+      const message = parts.slice(1).join(" ").trim();
+      if (!message) {
+        ctx.ui.showSystem("Usage: /reply <message>");
+        return true;
+      }
+      if (!ctx.onReply) {
+        ctx.ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");
+        return true;
+      }
+      ctx.onReply(message);
+      return true;
+    }
+
     case "session": {
       if (!ctx.getLocalSessionId) {
         ctx.ui.showSystem("No local Claude active. Join with --with-claude to start one.");
@@ -244,6 +260,7 @@ function showHelp(ctx: CommandContext): void {
   ui.showSystem("  /who            — List all participants");
   ui.showSystem("  /clear          — Clear the terminal");
   ui.showSystem("  /leave          — Leave the session");
+  ui.showSystem("  /reply <msg>    — Reply to the last participant who whispered you");
   if (ctx.role === "host") {
     ui.showSystem("");
     ui.showSystem("Host commands:");

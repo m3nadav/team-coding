@@ -209,6 +209,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   console.log("");
   ui.startInputLoop();
+  ui.onReplyExpansion(() => lastWhisperer ?? null);
   ui.showHint(
     options.withClaude
       ? "Type a message to chat, @claude <prompt> for shared Claude, /think for private Claude, /agent-mode to auto-respond."
@@ -508,6 +509,13 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   ui.onKeystroke(() => {
     const input = ui.getCurrentInput();
+
+    // Slash commands are private — never broadcast typing
+    if (input.startsWith("/")) {
+      stopTyping();
+      return;
+    }
+
     const newTargets = resolveTypingTargets(input, knownParticipants.map((p) => p.name));
 
     // If targets changed, stop the current typing before starting a new one

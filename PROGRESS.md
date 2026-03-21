@@ -1,5 +1,15 @@
 # team-claude Progress
 
+## Status: Post-Phase 7 Polish
+
+### 2026-03-21 — /reply magic expansion + typing suppression for slash commands
+
+- `src/ui.ts` — Added `onReplyExpansion(fn)` callback; in raw input handler, when space is pressed and buffer is exactly `/reply ` or `/r `, calls the callback and replaces the buffer with `@name ` (the last whisperer), cursor at end — so the user continues typing the message naturally
+- `src/commands/join.ts` / `src/commands/host.ts`:
+  - Wired `ui.onReplyExpansion(() => lastWhisperer ?? null)` after `startInputLoop()`
+  - Added early-return in `onKeystroke` when input starts with `/` — calls `stopTyping()` so slash commands never broadcast a typing indicator to other participants
+- 254 tests pass (unchanged)
+
 ## Status: Phase 7 Complete (/reply command)
 
 ### 2026-03-21 — Phase 7: /reply Command
