@@ -123,6 +123,23 @@ export class TerminalUI {
       );
     }
 
+    // /think and /private — only when local Claude is running
+    if (this.localClaudeActive) {
+      suggestions.push(
+        { trigger: "/t", completion: "/think ", display: "/think <prompt>" },
+        { trigger: "/th", completion: "/think ", display: "/think <prompt>" },
+        { trigger: "/thi", completion: "/think ", display: "/think <prompt>" },
+        { trigger: "/thin", completion: "/think ", display: "/think <prompt>" },
+        { trigger: "/think", completion: "/think ", display: "/think <prompt>" },
+        { trigger: "/pr", completion: "/private ", display: "/private <prompt>" },
+        { trigger: "/pri", completion: "/private ", display: "/private <prompt>" },
+        { trigger: "/priv", completion: "/private ", display: "/private <prompt>" },
+        { trigger: "/priva", completion: "/private ", display: "/private <prompt>" },
+        { trigger: "/privat", completion: "/private ", display: "/private <prompt>" },
+        { trigger: "/private", completion: "/private ", display: "/private <prompt>" },
+      );
+    }
+
     // Dynamic @name completions for whispers — exclude self and "claude"
     for (const name of this.participantNames) {
       if (name.toLowerCase() === "claude") continue;
