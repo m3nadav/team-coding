@@ -1,6 +1,6 @@
 import { TeamClaudeClient } from "../client.js";
 import { TerminalUI } from "../ui.js";
-import { handleSlashCommand, type CommandContext } from "./session-commands.js";
+import { handleSlashCommand, parseWhisper, type CommandContext } from "./session-commands.js";
 import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
@@ -96,7 +96,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   }
 
   ui.applySessionBackground();
-  ui.showSystem(`Connected! You're in a duet session with ${result.hostUser}.`);
+  ui.showSystem(`Connected! You're in a session with ${result.hostUser}.`);
   if (result.approvalMode) {
     ui.showSystem("Approval mode is ON — host will review your prompts.");
   }
@@ -107,10 +107,14 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   let messageCount = 0;
   const sessionStartTime = Date.now();
 
+  // Dynamic participant list — initialized from join_accepted, updated on join/leave
+  const knownParticipants: Array<{ name: string; role: string }> =
+    (result.participants || []).map((p: any) => ({ name: p.name, role: p.role }));
+
   const cmdCtx: CommandContext = {
     ui,
     role: "participant",
-    participantNames: () => [result.hostUser, options.name],
+    participantNames: () => knownParticipants.map((p) => p.name),
     startTime: sessionStartTime,
     onLeave: async () => {
       const elapsed = Date.now() - sessionStartTime;
@@ -129,6 +133,21 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   client.on("message", (msg) => {
     switch (msg.type) {
+      case "participant_joined": {
+        const p = (msg as any).participant;
+        if (p && !knownParticipants.find((k) => k.name === p.name)) {
+          knownParticipants.push({ name: p.name, role: p.role });
+        }
+        ui.showPartnerJoined(p.name);
+        break;
+      }
+      case "participant_left": {
+        const p = (msg as any).participant;
+        const idx = knownParticipants.findIndex((k) => k.name === p.name);
+        if (idx !== -1) knownParticipants.splice(idx, 1);
+        ui.showPartnerLeft(p.name);
+        break;
+      }
       case "history_replay": {
         const replay = msg as any;
         ui.showSystem(`Catching up on ${replay.messages.length} messages...`);
@@ -146,15 +165,25 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         break;
       }
       case "chat_received":
-        // Skip own chat messages (already shown locally) — use source field to avoid same-name collisions
-        if (msg.source === "participant") break;
+        // Skip own messages (already shown locally) — compare sender name, not source role
+        if ((msg as any).sender?.name === options.name) break;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "chat");
         break;
       case "prompt_received":
-        // Skip own messages (already shown locally when typed) — use source field
-        if (msg.source === "participant") break;
+        // Skip own messages (already shown locally when typed)
+        if ((msg as any).sender?.name === options.name) break;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", "claude");
         break;
+      case "whisper_received": {
+        const w = msg as any;
+        const fromMe = w.sender?.name === options.name;
+        if (fromMe) {
+          ui.showSystem(`[whisper → ${(w.targets as string[]).join(", ")}] ${w.text}`);
+        } else {
+          ui.showSystem(`[whisper from ${w.sender?.name}] ${w.text}`);
+        }
+        break;
+      }
       case "approval_status":
         ui.showApprovalStatus((msg as any).status);
         break;
@@ -217,9 +246,16 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       ui.showUserPrompt(options.name, prompt, "guest", "claude");
       client.sendPrompt(prompt);
     } else {
-      // Chat message
-      ui.showUserPrompt(options.name, text, "guest", "chat");
-      client.sendChat(text);
+      // Check for whisper (@name message)
+      const whisper = parseWhisper(text, knownParticipants.map((p) => p.name));
+      if (whisper) {
+        ui.showSystem(`[whisper → ${whisper.targets.join(", ")}] ${whisper.text}`);
+        client.sendWhisper(whisper.targets, whisper.text);
+      } else {
+        // Regular chat message
+        ui.showUserPrompt(options.name, text, "guest", "chat");
+        client.sendChat(text);
+      }
     }
   });
 

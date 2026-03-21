@@ -77,7 +77,10 @@ export class TeamClaudeClient extends EventEmitter {
       });
 
       this.ws.on("error", (err) => settle(() => reject(err)));
-      this.ws.on("close", () => this.emit("disconnected"));
+      this.ws.on("close", () => {
+        settle(() => reject(new Error("Connection closed before join completed")));
+        this.emit("disconnected");
+      });
     });
   }
 
@@ -142,7 +145,10 @@ export class TeamClaudeClient extends EventEmitter {
       };
 
       transport.on("message", onMessage);
-      transport.on("close", () => this.emit("disconnected"));
+      transport.on("close", () => {
+        settle(() => reject(new Error("Connection closed before join completed")));
+        this.emit("disconnected");
+      });
       transport.on("error", (err: Error) => settle(() => reject(err)));
     });
   }
