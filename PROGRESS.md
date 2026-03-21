@@ -1,5 +1,22 @@
 # team-claude Progress
 
+## Status: Phase 3 Complete
+
+### 2026-03-21 — Phase 3: Shared Claude Integration
+
+- **Phase**: Phase 3 (complete)
+- **Summary**:
+  - Updated `src/protocol.ts` — Added `contextMode?: "full" | "prompt-only"` field to `PromptMessage`
+  - Rewrote `src/router.ts` — Added `ChatEntry`/`QueuedPrompt` interfaces; `addChatMessage()` for history tracking (bounded to 500); `buildContextPrefix()` that collects chat since last Claude response; `executeOrQueue()` that checks `claude.isBusy()` before sending — queues with notice if busy; `processQueue()` drained on every `turn_complete` event; `sendToClaudeWithContext()` prepends `[Team chat context]` block for `contextMode: "full"` or sends raw for `"prompt-only"`
+  - Updated `src/server.ts` — In `routeMessage()`, sets `msg.contextMode = sender.contextMode` before emitting `"prompt"` so the router gets the participant's configured mode
+  - Updated `src/commands/session-commands.ts` — Added `onContextModeChange` to `CommandContext`; added `/context-mode full|prompt-only` command with validation and help entry
+  - Updated `src/client.ts` — Added `sendContextModeChange(mode)` method
+  - Updated `src/commands/join.ts` — Wired `onContextModeChange` to `client.sendContextModeChange(mode)`
+  - Updated `src/commands/host.ts` — Wired participant and host chat messages to `router.addChatMessage()`; added `onContextModeChange` that calls `server.injectLocalMessage` with `context_mode_change`
+  - Updated `src/__tests__/router.test.ts` — Added 8 new tests: queuing when busy (notice broadcast), queue drain on `turn_complete`, FIFO queue order, `full` mode context inclusion, `prompt-only` mode raw pass-through, no context when no chat, old-chat exclusion after response
+  - 207 total tests pass (8 new router tests, existing 199 all pass)
+- **Next**: Phase 4 — Private Local Claude Code (`--with-claude` flag, `/think` command, local Claude per participant)
+
 ## Status: Phase 2 Complete (bug fixes applied)
 
 ### 2026-03-21 — Bug Fixes: --name heuristic and approval mode identity

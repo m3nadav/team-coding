@@ -237,6 +237,7 @@ export class TeamClaudeServer extends EventEmitter {
       msg.user = sender.name;
       msg.source = sender.role;
       msg.sender = senderInfo;
+      msg.contextMode = sender.contextMode;
       this.emit("prompt", msg);
       return;
     }

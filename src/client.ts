@@ -223,6 +223,14 @@ export class TeamClaudeClient extends EventEmitter {
     });
   }
 
+  sendContextModeChange(mode: "full" | "prompt-only"): void {
+    this.sendEncrypted({
+      type: "context_mode_change",
+      mode,
+      timestamp: Date.now(),
+    });
+  }
+
   sendApprovalResponse(promptId: string, approved: boolean): void {
     if (!this.ws && !this.transport) return;
     this.sendEncrypted({

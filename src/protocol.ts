@@ -25,6 +25,7 @@ export interface PromptMessage extends BaseMessage {
   text: string;
   source?: "host" | "participant";
   sender?: SenderInfo;
+  contextMode?: "full" | "prompt-only";
 }
 
 export interface TypingMessage extends BaseMessage {

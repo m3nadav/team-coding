@@ -131,6 +131,9 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       ui.close();
       process.exit(0);
     },
+    onContextModeChange: (mode) => {
+      client.sendContextModeChange(mode);
+    },
   };
 
   client.on("message", (msg) => {

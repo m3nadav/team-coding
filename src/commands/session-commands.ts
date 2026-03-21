@@ -11,6 +11,7 @@ export interface CommandContext {
   onTrustChange?: (enabled: boolean) => void;
   onKick?: (name: string) => void;
   onAgentModeOff?: (name: string) => void;
+  onContextModeChange?: (mode: "full" | "prompt-only") => void;
 }
 
 /**
@@ -91,6 +92,17 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
       return false;
     }
 
+    case "context-mode": {
+      const mode = parts[1]?.toLowerCase();
+      if (mode !== "full" && mode !== "prompt-only") {
+        ctx.ui.showSystem("Usage: /context-mode full|prompt-only");
+        return true;
+      }
+      ctx.onContextModeChange?.(mode as "full" | "prompt-only");
+      ctx.ui.showSystem(`Context mode set to: ${mode}`);
+      return true;
+    }
+
     default:
       ctx.ui.showSystem(`Unknown command: /${cmd}. Type /help for available commands.`);
       return true;
@@ -153,6 +165,8 @@ function showHelp(ctx: CommandContext): void {
     ui.showSystem("  /kick <name>    — Disconnect a participant");
     ui.showSystem("  /agent-mode off <name> — Disable a participant's agent mode");
   }
+  ui.showSystem("");
+  ui.showSystem("  /context-mode <full|prompt-only> — Set Claude prompt context mode");
   ui.showSystem("");
   ui.showSystem("Message prefixes:");
   ui.showSystem("  @claude <msg>     — Send prompt to shared Claude");

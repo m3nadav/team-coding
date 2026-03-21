@@ -180,6 +180,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
   server.on("chat", (msg) => {
     ui.showUserPrompt(msg.user, msg.text, "guest", "chat");
+    router.addChatMessage(msg.user, msg.text);
   });
 
   let messageCount = 0;
@@ -227,6 +228,10 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       if (!result) {
         ui.showSystem(`Could not disable agent mode for "${name}" — not found or not in agent mode.`);
       }
+    },
+    onContextModeChange: (mode) => {
+      // Update host's contextMode in the registry via local message injection
+      server.injectLocalMessage({ type: "context_mode_change", mode, timestamp: Date.now() });
     },
   };
 
@@ -347,6 +352,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
             source: "host",
             timestamp: Date.now(),
           });
+          router.addChatMessage(options.name, text);
         }
       } else {
         // Chat message — broadcast to all, don't send to Claude
@@ -358,6 +364,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
           source: "host",
           timestamp: Date.now(),
         });
+        router.addChatMessage(options.name, text);
       }
     }
   });
