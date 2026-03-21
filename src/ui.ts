@@ -413,7 +413,7 @@ export class TerminalUI {
 
   showSystem(message: string): void {
     this.clearInputLine();
-    console.log(this.sessionText(`  · ${message}`));
+    console.log(this.sessionText(`  [system] ${message}`));
     this.restoreInputLine();
   }
 
