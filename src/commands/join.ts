@@ -1,4 +1,4 @@
-import { ClaudeDuetClient } from "../client.js";
+import { TeamClaudeClient } from "../client.js";
 import { TerminalUI } from "../ui.js";
 import { handleSlashCommand, type CommandContext } from "./session-commands.js";
 import { createAnswer } from "../peer.js";
@@ -14,7 +14,7 @@ interface JoinOptions {
 export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptions): Promise<void> {
   const ui = new TerminalUI({ userName: options.name, role: "guest" });
 
-  const client = new ClaudeDuetClient();
+  const client = new TeamClaudeClient();
   let result: Awaited<ReturnType<typeof client.connect>>;
   let peerCleanup: (() => void) | undefined;
 
@@ -257,6 +257,6 @@ async function resolveSessionUrl(sessionCode: string): Promise<string> {
   throw new Error(
     `Session discovery not available — use --url to connect directly.\n` +
     `  Ask the host for the join command, or run:\n` +
-    `  claude-duet join ${sessionCode} --password <password> --url ws://<host-ip>:<port>`
+    `  team-claude join ${sessionCode} --password <password> --url ws://<host-ip>:<port>`
   );
 }

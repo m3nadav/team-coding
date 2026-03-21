@@ -1,14 +1,14 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { ClaudeDuetServer } from "../server.js";
-import { ClaudeDuetClient } from "../client.js";
+import { TeamClaudeServer } from "../server.js";
+import { TeamClaudeClient } from "../client.js";
 import { isChatMessage } from "../protocol.js";
 
 const TEST_PASSWORD = "test1234";
 const TEST_SESSION_CODE = "cd-test1234";
 
 describe("chat messages", () => {
-  let server: ClaudeDuetServer;
-  let client: ClaudeDuetClient;
+  let server: TeamClaudeServer;
+  let client: TeamClaudeClient;
 
   afterEach(async () => {
     if (client) {
@@ -28,14 +28,14 @@ describe("chat messages", () => {
   });
 
   it("client.sendChat sends a chat message", async () => {
-    server = new ClaudeDuetServer({
+    server = new TeamClaudeServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
     });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const chatEvents: Record<string, unknown>[] = [];
@@ -50,14 +50,14 @@ describe("chat messages", () => {
   });
 
   it("server broadcasts chat_received to guest", async () => {
-    server = new ClaudeDuetServer({
+    server = new TeamClaudeServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
     });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const received: Record<string, unknown>[] = [];
@@ -80,14 +80,14 @@ describe("chat messages", () => {
   });
 
   it("chat messages do not trigger prompt event", async () => {
-    server = new ClaudeDuetServer({
+    server = new TeamClaudeServer({
       hostUser: "eliran",
       password: TEST_PASSWORD,
       sessionCode: TEST_SESSION_CODE,
     });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const promptEvents: Record<string, unknown>[] = [];

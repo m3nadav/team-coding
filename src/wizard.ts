@@ -20,7 +20,7 @@ export interface WizardResult {
 }
 
 export async function runWizard(): Promise<WizardResult | null> {
-  p.intro(`${pc.bgCyan(pc.black(" claude-duet "))} ${pc.dim("v0.2.0")}`);
+  p.intro(`${pc.bgCyan(pc.black(" team-claude "))} ${pc.dim("v0.2.0")}`);
 
   const mode = await p.select({
     message: "What would you like to do?",

@@ -1,13 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { ClaudeDuetServer } from "../server.js";
-import { ClaudeDuetClient } from "../client.js";
+import { TeamClaudeServer } from "../server.js";
+import { TeamClaudeClient } from "../client.js";
 
 const TEST_PASSWORD = "test1234";
 const TEST_SESSION_CODE = "cd-test1234";
 
-describe("ClaudeDuetClient", () => {
-  let server: ClaudeDuetServer;
-  let client: ClaudeDuetClient;
+describe("TeamClaudeClient", () => {
+  let server: TeamClaudeServer;
+  let client: TeamClaudeClient;
 
   afterEach(async () => {
     if (client) await client.disconnect();
@@ -15,10 +15,10 @@ describe("ClaudeDuetClient", () => {
   });
 
   it("connects and joins with correct password", async () => {
-    server = new ClaudeDuetServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     const result = await client.connect(
       `ws://localhost:${port}`,
       "benji",
@@ -30,20 +30,20 @@ describe("ClaudeDuetClient", () => {
   });
 
   it("fails to join with wrong password", async () => {
-    server = new ClaudeDuetServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await expect(
       client.connect(`ws://localhost:${port}`, "benji", "wrongpass", TEST_SESSION_CODE, 500),
     ).rejects.toThrow();
   });
 
   it("receives broadcast messages", async () => {
-    server = new ClaudeDuetServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const messages: Record<string, unknown>[] = [];
@@ -61,10 +61,10 @@ describe("ClaudeDuetClient", () => {
   });
 
   it("sends prompts to server", async () => {
-    server = new ClaudeDuetServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
+    server = new TeamClaudeServer({ hostUser: "eliran", password: TEST_PASSWORD, sessionCode: TEST_SESSION_CODE });
     const port = await server.start();
 
-    client = new ClaudeDuetClient();
+    client = new TeamClaudeClient();
     await client.connect(`ws://localhost:${port}`, "benji", TEST_PASSWORD, TEST_SESSION_CODE);
 
     const prompts: Record<string, unknown>[] = [];

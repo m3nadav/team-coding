@@ -7,7 +7,7 @@ import type { DuetTransport } from "./transport.js";
 
 const DEFAULT_JOIN_TIMEOUT_MS = 5000;
 
-export class ClaudeDuetClient extends EventEmitter {
+export class TeamClaudeClient extends EventEmitter {
   private ws?: WebSocket;
   private transport?: DuetTransport;
   private user?: string;

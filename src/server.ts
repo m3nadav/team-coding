@@ -18,7 +18,7 @@ export interface ServerOptions {
   approvalMode?: boolean;
 }
 
-export class ClaudeDuetServer extends EventEmitter {
+export class TeamClaudeServer extends EventEmitter {
   private wss?: WebSocketServer;
   private guest?: WebSocket;
   private guestTransport?: DuetTransport;

@@ -298,7 +298,7 @@ export class TerminalUI {
 
     console.log("");
     console.log(violet("  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510"));
-    console.log(`${bar}  ${pc.bold(pc.cyan("\u2726"))} ${pc.bold(pc.white("claude-duet"))} ${dim("session started")}${" ".repeat(13)}${violet("\u2502")}`);
+    console.log(`${bar}  ${pc.bold(pc.cyan("\u2726"))} ${pc.bold(pc.white("team-claude"))} ${dim("session started")}${" ".repeat(13)}${violet("\u2502")}`);
     console.log(violet("  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518"));
     console.log("");
 
@@ -307,7 +307,7 @@ export class TerminalUI {
       console.log("");
       console.log(`  ${pc.green("\u25b6")} ${pc.bold(pc.green(joinCmd))}`);
     } else if (connectUrl) {
-      const cmd = `npx claude-duet join ${sessionCode} --password ${password} --url ${connectUrl}`;
+      const cmd = `npx team-claude join ${sessionCode} --password ${password} --url ${connectUrl}`;
       console.log(`  ${dim("Send your partner this command to join:")}`);
       console.log("");
       console.log(`  ${pc.green("\u25b6")} ${pc.bold(pc.green(cmd))}`);

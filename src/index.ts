@@ -6,13 +6,14 @@ import { loadConfig } from "./config.js";
 const program = new Command();
 
 program
-  .name("claude-duet")
-  .description("Claude duet coding — share a Claude Code session with a partner")
-  .version("0.2.0");
+  .name("team-claude")
+  .description("Multi-participant collaborative coding sessions — share a Claude Code session with your team")
+  .version("0.1.0");
 
 program
   .command("host")
-  .description("Start a claude-duet session as host")
+  .description("Start a team-claude session as host")
+  .option("--max-participants <n>", "maximum number of participants (default: 10, ⚠ performance may degrade above 10)", "10")
   .option("-n, --name <name>", "your display name", process.env.USER || "host")
   .option("--no-approval", "disable approval mode (trust your partner)")
   .option("--tunnel [provider]", "use a tunnel for remote access (localtunnel, cloudflare)")
@@ -41,7 +42,7 @@ program
 
 program
   .command("join <session-code-or-offer>")
-  .description("Join an existing claude-duet session (session code or P2P offer code)")
+  .description("Join an existing team-claude session (session code or P2P offer code)")
   .option("-n, --name <name>", "your display name", process.env.USER || "guest")
   .option("--password <password>", "session password")
   .option("--url <url>", "WebSocket URL (direct, SSH tunnel, VPN, etc.)")
@@ -62,7 +63,7 @@ program
 
 program
   .command("relay")
-  .description("Run a self-hosted relay server for remote claude-duet sessions")
+  .description("Run a self-hosted relay server for remote team-claude sessions")
   .option("-p, --port <port>", "relay server port", "9877")
   .action(async (options) => {
     const { startRelayServer } = await import("./relay-server.js");
@@ -71,7 +72,7 @@ program
 
 const configCmd = program
   .command("config")
-  .description("View and manage claude-duet configuration")
+  .description("View and manage team-claude configuration")
   .action(async () => {
     const { configShowCommand } = await import("./commands/config.js");
     configShowCommand();
@@ -80,7 +81,7 @@ const configCmd = program
 configCmd
   .command("set <key> <value>")
   .description("Set a config value")
-  .option("--project", "save to project config (.claude-duet.json)")
+  .option("--project", "save to project config (.team-claude.json)")
   .action(async (key, value, options) => {
     const { configSetCommand } = await import("./commands/config.js");
     configSetCommand(key, value, options);

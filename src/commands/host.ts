@@ -1,4 +1,4 @@
-import { ClaudeDuetServer } from "../server.js";
+import { TeamClaudeServer } from "../server.js";
 import { ClaudeBridge, type PermissionMode } from "../claude.js";
 import { PromptRouter } from "../router.js";
 import { TerminalUI } from "../ui.js";
@@ -30,7 +30,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   const ui = new TerminalUI({ userName: options.name, role: "host" });
 
   // Create server first so event handler can reference it
-  const server = new ClaudeDuetServer({
+  const server = new TeamClaudeServer({
     hostUser: options.name,
     password: session.password,
     sessionCode: session.code,
@@ -123,7 +123,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       const offer = await createOffer(session.code);
       peerCleanup = offer.cleanup;
 
-      const joinCmd = `npx claude-duet join ${offer.offerCode} --password ${session.password}`;
+      const joinCmd = `npx team-claude join ${offer.offerCode} --password ${session.password}`;
       ui.showWelcome(session.code, session.password, undefined, joinCmd);
 
       if (copyToClipboard(joinCmd)) {
@@ -155,7 +155,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       connInfo = formatConnectionInfo({ mode: "lan", host: localIP, port });
       ui.showSystem(`LAN server ready on ${connInfo.displayUrl}`);
 
-      const joinCmd = `npx claude-duet join ${session.code} --password ${session.password} --url ${connInfo.displayUrl}`;
+      const joinCmd = `npx team-claude join ${session.code} --password ${session.password} --url ${connInfo.displayUrl}`;
       console.log("");
       console.log(`  Send your partner this command to join:`);
       console.log(`  ${joinCmd}`);

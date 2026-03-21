@@ -1,11 +1,11 @@
 {
-  "name": "claude-duet",
-  "version": "0.3.2",
-  "description": "Share your Claude Code session with a partner — real-time collaboration for AI pair programming",
+  "name": "team-claude",
+  "version": "0.1.0",
+  "description": "Multi-participant collaborative coding sessions — share a Claude Code session with your team",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "claude-duet": "dist/index.js"
+    "team-claude": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -19,7 +19,8 @@
   "keywords": [
     "claude",
     "claude-code",
-    "pair-programming",
+    "team-collaboration",
+    "multi-participant",
     "ai",
     "collaboration",
     "vibe-coding",
@@ -31,7 +32,7 @@
     "anthropic",
     "remote-collaboration",
     "ai-pair-programming",
-    "screen-sharing"
+    "agent-mode"
   ],
   "license": "MIT",
   "engines": {
@@ -44,12 +45,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/elirang/claude-duet"
+    "url": "https://github.com/m3nadav/team-claude"
   },
   "bugs": {
-    "url": "https://github.com/elirang/claude-duet/issues"
+    "url": "https://github.com/m3nadav/team-claude/issues"
   },
-  "homepage": "https://github.com/elirang/claude-duet#readme",
+  "homepage": "https://github.com/m3nadav/team-claude#readme",
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@inkjs/ui": "^2.0.0",
