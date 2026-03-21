@@ -2,6 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .claude-duet/
+.team-claude/
+.team-coding/
 .test-session/
 .DS_Store
 .superset/
