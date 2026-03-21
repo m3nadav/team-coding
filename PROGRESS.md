@@ -1,5 +1,34 @@
 # team-claude Progress
 
+## Status: Phase 5 Complete + Polish
+
+### 2026-03-21 — README rewrite
+
+- Rewrote `README.md` to reflect all implemented phases; attribution reduced to a single line at the bottom before the license
+
+### 2026-03-21 — System message formatting
+
+- `src/ui.ts`: `showSystem()` now prefixes every message with `[system]` (no indentation) so system messages are visually distinct from chat
+- `src/commands/host.ts`: Added `notice` handler in `server_message` listener — host now sees broadcast notices (agent mode toggles, context mode changes, etc.) that were previously silently dropped
+
+### 2026-03-21 — Agent mode context + whisper reply
+
+- `src/commands/join.ts`:
+  - Shared Claude responses accumulate via `stream_chunk` and are added to `localChatHistory` as `"Claude: ..."` on `turn_complete`, so the agent's local Claude sees host Claude responses in context
+  - `localContextStartIndex` tracks the context window start; resets after each Claude response (shared or local), matching the router's sliding-window behaviour
+  - Agent auto-responds to incoming whispers with a whisper back to the sender (`agentTurnWhisperTarget`); group-chat messages still get `sendChat(…, true)`
+  - All disable paths (manual, remote, error) clear `agentTurnWhisperTarget`
+- 249 tests pass (unchanged)
+
+### 2026-03-21 — Phase 5: Agent Mode
+
+- **Summary**:
+  - `src/client.ts` — Added `sendAgentModeToggle(enabled, participantId)`
+  - `src/commands/session-commands.ts` — Added `onAgentModeToggle` and `isAgentMode` to `CommandContext`; `/agent-mode` now fully handled (was returning `false`); added to `/help` for `--with-claude` participants
+  - `src/ui.ts` — Added `showConfirmation(message, onResult)`; extended `showUserPrompt` mode to `"chat"|"claude"|"agent"`; added `/agent-mode` autocomplete gated on `localClaudeActive`
+  - `src/commands/join.ts` — Agent mode state machine: `agentModeEnabled`, `isAgentTurn`, `agentResponseBuffer`, `lastAgentResponseTime`; local Claude event handler buffers and broadcasts agent responses; `onAgentModeToggle` wired in `cmdCtx`; handles `agent_mode_toggle` from server for remote disable; rate limit (5 s) and loop prevention (`isAgentResponse`)
+  - 249 tests pass (6 new for `/agent-mode`)
+
 ## Status: Post-Phase 4 Polish
 
 ### 2026-03-21 — Whisper display style
