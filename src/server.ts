@@ -26,12 +26,17 @@ export interface ServerOptions {
 
 const DEFAULT_MAX_PARTICIPANTS = 10;
 
+// How often to send WebSocket ping frames (ms).
+// Must be well under typical tunnel/proxy idle timeouts (localtunnel = 120s).
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
 export class TeamClaudeServer extends EventEmitter {
   private wss?: WebSocketServer;
   private options: Required<ServerOptions>;
   private encryptionKey: Uint8Array;
   private registry: ParticipantRegistry;
   private nextSeq = 1;
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
 
   // Legacy transport support (for P2P/relay)
   private transportParticipants = new Map<DuetTransport, string>(); // transport → participantId
@@ -64,10 +69,35 @@ export class TeamClaudeServer extends EventEmitter {
       this.wss.on("listening", () => {
         const addr = this.wss!.address();
         const listeningPort = typeof addr === "object" && addr !== null ? addr.port : 0;
+        this.startHeartbeat();
         resolve(listeningPort);
       });
       this.wss.on("connection", (ws) => this.handleConnection(ws));
     });
+  }
+
+  /**
+   * Send a ping frame to every connected WebSocket client every HEARTBEAT_INTERVAL_MS.
+   * Clients that miss a pong are terminated (dead connection detection).
+   * This keeps connections alive through tunnels/proxies that impose idle timeouts
+   * (e.g. localtunnel drops connections after ~120 s of inactivity).
+   */
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      for (const participant of this.registry.getRemote()) {
+        const ws = participant.ws;
+        if (!ws || ws.readyState !== WebSocket.OPEN) continue;
+
+        if ((ws as any)._tcAlive === false) {
+          // Missed the previous pong — connection is dead, terminate it
+          ws.terminate();
+          continue;
+        }
+
+        (ws as any)._tcAlive = false;
+        ws.ping();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   attachTransport(transport: DuetTransport): void {
@@ -107,6 +137,10 @@ export class TeamClaudeServer extends EventEmitter {
       });
       return;
     }
+
+    // Mark alive on pong — heartbeat uses this to detect dead connections
+    (ws as any)._tcAlive = true;
+    ws.on("pong", () => { (ws as any)._tcAlive = true; });
 
     ws.on("message", (data) => {
       try {
@@ -501,6 +535,10 @@ export class TeamClaudeServer extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
     for (const participant of this.registry.getRemote()) {
       participant.ws?.close();
     }
