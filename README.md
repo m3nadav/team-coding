@@ -1,32 +1,31 @@
 # team-claude
 
-Multi-participant collaborative coding sessions — share a Claude Code session with your entire team.
-
-> Forked from [claude-duet](https://github.com/EliranG/claude-duet) by [EliranG](https://github.com/EliranG). Original project is MIT licensed.
+Multi-participant collaborative coding sessions powered by Claude Code.
 
 ## What Is This
 
-A shared terminal session where multiple participants can **chat with each other**, **whisper privately**, **invoke a shared Claude together**, and optionally **run their own private Claude for brainstorming** — all in real-time with end-to-end encryption.
+A shared terminal where multiple people can **chat**, **whisper privately**, **prompt a shared Claude together**, and optionally **run their own private Claude for brainstorming** — all in real-time with end-to-end encryption.
 
 ```
-you:                hey, do you see the bug in auth.ts?     ← group chat
-@claude:            fix the token refresh in src/auth.ts    ← sent to shared Claude
-@bob:               check line 42, I think that's it        ← whisper (only bob sees)
-/think:             what does this function actually do?     ← private Claude (only you see)
-/agent-mode:        let your Claude auto-respond in chat    ← agent mode
+hello!              → group chat, everyone sees it
+@claude fix auth.ts → sent to shared Claude, everyone sees the response
+@bob check line 42  → whisper, only bob sees it
+/think what does…   → private prompt to your own local Claude
+/agent-mode         → your local Claude auto-responds to chat on your behalf
 ```
 
-### Features
+## Features
 
-- **Multi-participant sessions** — Up to 10 participants (configurable via `--max-participants`)
-- **Group chat with ordering** — Server-assigned sequence numbers ensure consistent message order
-- **Whispers** — Direct messages via `@name message` syntax
-- **Shared Claude Code** — Host runs a headless Claude instance, all participants can prompt it (with approval)
-- **Private local Claude** — Join with `--with-claude` to run your own Claude for private brainstorming
-- **Agent mode** — `/agent-mode` lets your local Claude auto-participate in group chat
-- **Context control** — `/context-mode full|prompt-only` to manage Claude token usage in noisy chats
+- **Multi-participant** — Up to 10 participants (configurable), each identified by name
+- **Group chat with ordering** — Server-assigned sequence numbers for consistent message order across all clients
+- **Whispers** — Direct messages via `@name message`; typing indicators are targeted to the recipient only
+- **Shared Claude Code** — Host runs a headless Claude instance; participants prompt it with optional approval gate
+- **Private local Claude** — Join with `--with-claude` for a private Claude that never touches the server
+- **Agent mode** — `/agent-mode` lets your local Claude auto-respond to chat and whispers on your behalf, with loop prevention and rate limiting
+- **Context control** — `/context-mode full|prompt-only` manages what chat history Claude receives; agent mode inherits this setting and includes shared Claude responses in context
+- **Session resume** — Host can `--continue` or `--resume <id>` to pick up a previous Claude Code session
 - **E2E encryption** — NaCl secretbox (XSalsa20 + Poly1305) with scrypt key derivation
-- **Multiple connection modes** — WebSocket, WebRTC P2P, tunnels, relay servers
+- **Multiple connection modes** — WebSocket (LAN/tunnel/relay) and WebRTC P2P
 
 ## Quick Start
 
@@ -43,69 +42,76 @@ npx team-claude join <session-code> --password <password> --name bob
 npx team-claude join <session-code> --password <password> --name charlie --with-claude
 ```
 
-## CLI Commands
+## CLI Reference
 
 ```bash
-team-claude host                           # Start a session
-team-claude host --max-participants 20     # Allow more participants (default: 10)
-team-claude host --continue                # Resume most recent Claude Code session
-team-claude host --no-approval             # Trust mode — skip prompt review
+team-claude host                           # Start a session (WebRTC P2P by default)
 team-claude host --tunnel cloudflare       # Remote access via Cloudflare tunnel
+team-claude host --tunnel localtunnel      # Remote access via localtunnel
+team-claude host --no-approval             # Trust mode — skip prompt review
+team-claude host --continue                # Resume most recent Claude Code session
+team-claude host --resume <id>             # Resume a specific session by ID
+team-claude host --max-participants 20     # Raise participant limit (default: 10)
 team-claude join <code> --password <pw>    # Join a session
+team-claude join <code> … --with-claude    # Join with a private local Claude
 team-claude relay                          # Run a self-hosted relay server
-team-claude config                         # View/manage configuration
+team-claude config                         # View/manage saved configuration
 ```
 
 ## In-Session Commands
 
-| What you type | What happens |
-|---------------|--------------|
-| `hello!` | Group chat — all participants see it |
-| `@claude fix the bug` | Sent to shared Claude — all see the response |
-| `@bob check line 42` | Whisper — only bob sees this |
+| Input | Effect |
+|-------|--------|
+| `hello!` | Group chat |
+| `@claude fix the bug` | Prompt shared Claude (all see the response) |
+| `@bob check line 42` | Whisper to bob only |
 | `/think what does this do?` | Private prompt to your local Claude |
-| `/agent-mode` | Toggle: let your Claude auto-respond in chat |
-| `/agent-mode off <name>` | (host) Disable a participant's agent mode |
-| `/context-mode full\|prompt-only` | Control what context Claude receives |
+| `/private <prompt>` | Alias for `/think` |
+| `/agent-mode` | Enable: local Claude auto-responds to chat and whispers |
+| `/agent-mode off` | Disable your own agent mode |
+| `/agent-mode off <name>` | (host) Disable a participant's agent mode remotely |
+| `/context-mode full\|prompt-only` | Set context Claude receives for prompts |
 | `/who` | List all participants |
 | `/kick <name>` | (host) Disconnect a participant |
-| `/trust` | (host) Skip prompt approval |
-| `/approval` | (host) Re-enable prompt approval |
-| `/help` | Show available commands |
+| `/trust` | (host) Switch to trust mode (no approval) |
+| `/approval` | (host) Re-enable approval mode |
+| `/status` | Show session info and duration |
+| `/help` | Show all available commands |
 
 ## How It Works
 
 ```
-┌──────────────┐
-│  Host        │◄──── WebSocket ────► Participant 1 (+ optional local Claude)
-│  Claude Code │◄──── WebSocket ────► Participant 2 (+ optional local Claude)
-│  (headless)  │◄──── WebSocket ────► Participant N (+ optional local Claude)
-│  Chat Server │
-└──────────────┘
+┌─────────────────────┐
+│  Host               │◄── WebSocket ──► Participant A  (+ local Claude)
+│  · Claude Code      │◄── WebSocket ──► Participant B  (+ local Claude)
+│  · Chat server      │◄── WebSocket ──► Participant N  (+ local Claude)
+│  · Approval gate    │
+└─────────────────────┘
 ```
 
-- **Host** runs Claude Code headless + manages the chat server
-- **Participants** connect via WebSocket (or WebRTC P2P)
-- **Chat** flows through the host with server-assigned sequence numbers for total ordering
-- **Shared Claude** prompts go through an approval gate (host reviews)
-- **Private Claude** runs locally on each participant's machine — never touches the server
+- **Host** runs a headless Claude Code process and a WebSocket server
+- **Participants** connect via WebSocket (or WebRTC P2P for direct connections)
+- **Messages** flow through the host with monotonic sequence numbers for total ordering
+- **Shared Claude** prompts are approval-gated by default; the host can switch to trust mode
+- **Private Claude** runs entirely on the participant's machine — responses never leave it
+- **Agent mode** auto-forwards incoming chat/whispers to the participant's local Claude and posts responses back; includes shared Claude replies in context, applies rate limiting (5 s), and prevents response loops
 
 ## Security
 
-- **E2E Encrypted** — NaCl secretbox + scrypt key derivation
-- **Approval Mode** — host reviews participants' Claude prompts (on by default)
-- **Host Controls Everything** — Claude runs on the host's machine, host's API key
-- **Agent mode safeguards** — Loop prevention, rate limiting, host override
+- **E2E encrypted** — All WebSocket traffic is NaCl secretbox encrypted with a scrypt-derived key
+- **Approval mode** — Host reviews participant prompts before they reach Claude (on by default)
+- **Host-controlled** — Claude runs on the host's machine using the host's API key
+- **Agent safeguards** — Loop prevention (`isAgentResponse` flag), 5-second rate limit, host remote-disable
 
 ## Connection Modes
 
-| Mode | Command | When |
-|------|---------|------|
-| **P2P (default)** | `team-claude host` | Direct WebRTC connection |
-| **LAN** | `team-claude host --tunnel localtunnel` | Same Wi-Fi / VPN |
-| **Cloudflare** | `team-claude host --tunnel cloudflare` | Remote, no server needed |
-| **SSH Tunnel** | `ssh -L 3000:localhost:3000 host` | Remote, secure |
-| **Relay** | `team-claude host --relay <url>` | Self-hosted relay |
+| Mode | How |
+|------|-----|
+| **P2P (default)** | WebRTC direct connection, no server needed |
+| **Cloudflare tunnel** | `--tunnel cloudflare` — works anywhere, no port forwarding |
+| **localtunnel** | `--tunnel localtunnel` — quick LAN/remote sharing |
+| **LAN** | Share the local IP directly on the same network |
+| **Relay** | `--relay <url>` with a self-hosted relay server |
 
 ## Development
 
@@ -113,18 +119,15 @@ team-claude config                         # View/manage configuration
 git clone https://github.com/m3nadav/team-claude.git
 cd team-claude
 npm install
-npm run build
-npm test
+npm run build   # compile TypeScript
+npm test        # run test suite (vitest)
+npm run dev     # watch mode
 ```
 
 Requires Node.js 18+.
 
-## Attribution
-
-This project is forked from [claude-duet](https://github.com/EliranG/claude-duet) by [EliranG](https://github.com/EliranG), which provides the foundational architecture for encrypted session sharing, headless Claude Code integration, and terminal UI. We are grateful for the solid baseline that made team-claude possible.
-
 ## License
 
-[MIT](LICENSE) — same license as the original claude-duet project.
+[MIT](LICENSE)
 
-Copyright (c) 2026 Eliran G. (original claude-duet)
+Forked from [claude-duet](https://github.com/EliranG/claude-duet) by EliranG.
