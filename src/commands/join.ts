@@ -5,12 +5,15 @@ import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
 import { LocalClaude } from "../local-claude.js";
+import { loadUserConfig, saveUserConfig } from "../config.js";
 
 interface JoinOptions {
   name: string;
   password?: string;
   url?: string;
   withClaude?: boolean;
+  continueSession?: boolean;
+  resumeSession?: string;
   debug?: boolean;
 }
 
@@ -136,16 +139,36 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
 
   // Spawn local Claude if requested
   let localClaude: LocalClaude | undefined;
+  let localSessionId: string | undefined;
+  const isResuming = !!(options.continueSession || options.resumeSession);
+
   if (options.withClaude) {
-    localClaude = new LocalClaude(process.cwd());
+    let resumeId = options.resumeSession;
+    if (options.continueSession && !resumeId) {
+      resumeId = loadUserConfig().lastLocalSessionId;
+    }
+    localClaude = new LocalClaude({
+      cwd: process.cwd(),
+      resume: resumeId,
+      continue: options.continueSession && !resumeId,
+    });
     localClaude.on("event", (event: any) => {
       switch (event.type) {
         case "stream_chunk":
           ui.showLocalClaudeChunk(event.text);
           if (isAgentTurn) agentResponseBuffer += event.text;
           break;
+        case "session_init":
+          localSessionId = event.sessionId;
+          saveUserConfig({ lastLocalSessionId: event.sessionId });
+          ui.showSystem(
+            isResuming
+              ? `Resumed local Claude session ${event.sessionId.slice(0, 8)}…`
+              : `Started fresh local Claude session ${event.sessionId.slice(0, 8)}… (use --continue next time to resume)`
+          );
+          break;
         case "tool_use":
-          ui.showSystem(`  [local: ${event.tool}]`);
+          ui.showSystem(`[local: ${event.tool}]`);
           break;
         case "turn_complete":
           ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
@@ -314,6 +337,8 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         }
       : undefined,
     isAgentMode: options.withClaude ? () => agentModeEnabled : undefined,
+    getLocalSessionId: options.withClaude ? () => localSessionId : undefined,
+    isLocalSessionResumed: options.withClaude ? () => isResuming : undefined,
   };
 
   client.on("message", (msg) => {

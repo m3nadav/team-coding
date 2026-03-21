@@ -7,13 +7,24 @@ import { ClaudeBridge, type ClaudeEvent } from "./claude.js";
 // Wraps ClaudeBridge for local-only use. Responses never leave the machine.
 // Used by join --with-claude for /think and /private commands.
 
+export interface LocalClaudeOptions {
+  cwd?: string;
+  continue?: boolean;
+  resume?: string;
+}
+
 export class LocalClaude extends EventEmitter {
   private bridge: ClaudeBridge;
   private _started = false;
 
-  constructor(cwd?: string) {
+  constructor(options: LocalClaudeOptions = {}) {
     super();
-    this.bridge = new ClaudeBridge({ cwd: cwd ?? process.cwd(), permissionMode: "auto" });
+    this.bridge = new ClaudeBridge({
+      cwd: options.cwd ?? process.cwd(),
+      permissionMode: "auto",
+      continue: options.continue,
+      resume: options.resume,
+    });
   }
 
   async start(): Promise<void> {

@@ -34,10 +34,12 @@ describe("LocalClaude", () => {
   });
 
   it("creates a ClaudeBridge with auto permission mode", () => {
-    new LocalClaude("/some/cwd");
+    new LocalClaude({ cwd: "/some/cwd" });
     expect(MockClaudeBridge).toHaveBeenCalledWith({
       cwd: "/some/cwd",
       permissionMode: "auto",
+      continue: undefined,
+      resume: undefined,
     });
   });
 
@@ -46,6 +48,8 @@ describe("LocalClaude", () => {
     expect(MockClaudeBridge).toHaveBeenCalledWith({
       cwd: process.cwd(),
       permissionMode: "auto",
+      continue: undefined,
+      resume: undefined,
     });
   });
 

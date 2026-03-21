@@ -278,6 +278,14 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui.setParticipants(server.getParticipantNames());
     ui.showPartnerJoined(user);
 
+    // Notify the joining participant if this is a resumed session
+    if (options.continueSession || options.resumeSession) {
+      const notice = options.resumeSession
+        ? `Host resumed Claude session ${options.resumeSession.slice(0, 8)}…`
+        : "Host resumed a previous Claude session";
+      server.sendToByName(user, { type: "notice", message: notice, timestamp: Date.now() });
+    }
+
     // Send session history to guest if resuming an existing session
     const claudeSessionId = claude.getSessionId();
     if (claudeSessionId && (options.continueSession || options.resumeSession)) {

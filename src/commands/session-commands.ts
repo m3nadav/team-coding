@@ -16,6 +16,8 @@ export interface CommandContext {
   onThink?: (prompt: string) => void;
   onAgentModeToggle?: (enabled: boolean) => void;
   isAgentMode?: () => boolean;
+  getLocalSessionId?: () => string | undefined;
+  isLocalSessionResumed?: () => boolean;
 }
 
 /**
@@ -141,6 +143,24 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
       return true;
     }
 
+    case "session": {
+      if (!ctx.getLocalSessionId) {
+        ctx.ui.showSystem("No local Claude active. Join with --with-claude to start one.");
+        return true;
+      }
+      const sid = ctx.getLocalSessionId();
+      if (!sid) {
+        ctx.ui.showSystem("Local Claude session not yet initialized.");
+        return true;
+      }
+      const resumed = ctx.isLocalSessionResumed?.() ?? false;
+      ctx.ui.showSystem(`Local Claude session: ${sid.slice(0, 8)}… (${resumed ? "resumed" : "fresh"})`);
+      if (!resumed) {
+        ctx.ui.showSystem("Tip: join with --continue next time to resume this session");
+      }
+      return true;
+    }
+
     default:
       ctx.ui.showSystem(`Unknown command: /${cmd}. Type /help for available commands.`);
       return true;
@@ -241,6 +261,7 @@ function showHelp(ctx: CommandContext): void {
     ui.showSystem("  /private <prompt> — Alias for /think");
     ui.showSystem("  /agent-mode       — Auto-forward group chat to your local Claude and post its responses");
     ui.showSystem("  /agent-mode off   — Disable agent mode");
+    ui.showSystem("  /session          — Show local Claude session ID and resume status");
   }
   ui.showSystem("");
   ui.showSystem("Message prefixes:");
