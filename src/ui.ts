@@ -212,11 +212,20 @@ export class TerminalUI {
 
   private clearInputLine(): void {
     if (!this.rawMode) return;
+    if (this.claudeStreaming || this.localClaudeStreaming) {
+      // Cursor is inside streaming output — move to a new line instead of
+      // erasing, so we don't wipe out the chunk that was just written.
+      process.stdout.write(`\n`);
+      return;
+    }
     process.stdout.write(`\r\x1b[2K`);
   }
 
   private restoreInputLine(): void {
-    if (!this.rawMode || this.claudeProcessing) return;
+    // Never redraw the input prompt while Claude is actively streaming.
+    // redrawLine() starts with \r\x1b[2K which erases the current terminal line —
+    // if the cursor is inside streaming output that would delete content.
+    if (!this.rawMode || this.claudeProcessing || this.claudeStreaming || this.localClaudeStreaming) return;
     this.redrawLine();
   }
 
@@ -662,14 +671,16 @@ export class TerminalUI {
     } else if (this.typingUser === user) {
       this.typingUser = undefined;
     }
-    if (this.rawMode) {
+    // Don't redraw during streaming — redrawLine() starts with \r\x1b[2K and
+    // would erase the current streaming line.
+    if (this.rawMode && !this.claudeStreaming && !this.localClaudeStreaming) {
       this.redrawLine();
     }
   }
 
   clearTypingIndicator(): void {
     this.typingUser = undefined;
-    if (this.rawMode) {
+    if (this.rawMode && !this.claudeStreaming && !this.localClaudeStreaming) {
       this.redrawLine();
     }
   }

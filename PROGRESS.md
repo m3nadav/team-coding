@@ -2,6 +2,21 @@
 
 ## Status: Post-Phase 7 Polish (continued)
 
+### 2026-03-22 — Fix streaming output erased by typing indicators and system messages
+
+**Root cause**: `clearInputLine()` always wrote `\r\x1b[2K` (carriage-return + erase line). `restoreInputLine()` always called `redrawLine()` which also starts with `\r\x1b[2K`. `showTypingIndicator()` and `clearTypingIndicator()` called `redrawLine()` directly. All of these erase the **current terminal line**.
+
+While Claude is streaming, the cursor sits at the end of the last chunk — NOT on the input prompt line. So every event that triggered any of those functions during streaming (typing indicators from other participants, chat messages, system notices, participant join/leave) would erase whatever streaming text was on the current line. Responses would appear partial or completely blank depending on how many concurrent events arrived.
+
+This explained why some participants saw full responses while others saw partial or nothing — it correlated directly with how active the session was (more activity → more line-erasing events → more content wiped).
+
+**Changes** (`src/ui.ts`):
+- `clearInputLine()`: when `claudeStreaming || localClaudeStreaming`, write `\n` (advance to new line without erasing) instead of `\r\x1b[2K`; this preserves streaming content while still giving system messages their own clean line
+- `restoreInputLine()`: added `|| this.claudeStreaming || this.localClaudeStreaming` to the early-return guard; the input prompt is never redrawn while streaming output is in progress
+- `showTypingIndicator()` and `clearTypingIndicator()`: added `!this.claudeStreaming && !this.localClaudeStreaming` guard before calling `redrawLine()` directly; previously bypassed the guards entirely
+
+**Result**: Typing indicators, chat messages, system notices, and join/leave events no longer corrupt in-flight streaming output. Responses are fully visible regardless of session activity level.
+
 ### 2026-03-22 — Fix streaming inconsistency: mid-stream joiners, silent drops, WS crash
 
 **Problems fixed**:
