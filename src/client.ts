@@ -168,27 +168,33 @@ export class TeamCodingClient extends EventEmitter {
   }
 
   private handleWsMessage(data: WebSocket.RawData): void {
+    // Only wrap the decrypt/parse step — listener errors must propagate so
+    // stream_chunk drops are never silently swallowed.
+    let msg: ServerMessage;
     try {
       const decrypted = decrypt(data.toString(), this.encryptionKey!);
-      const msg = JSON.parse(decrypted) as ServerMessage;
-      this.debug(`ws recv: ${msg.type}`);
-      this.emit("message", msg);
+      msg = JSON.parse(decrypted) as ServerMessage;
     } catch (err) {
-      this.debug(`ws recv error: ${err}`);
-      // Ignore malformed or undecryptable messages
+      this.debug(`ws recv decode error: ${err}`);
+      return; // Ignore malformed or undecryptable messages
     }
+    this.debug(`ws recv: ${msg.type}`);
+    this.emit("message", msg);
   }
 
   private handleTransportMessage(data: string): void {
+    // Only wrap the decrypt/parse step — listener errors must propagate so
+    // stream_chunk drops are never silently swallowed.
+    let msg: ServerMessage;
     try {
       const decrypted = decrypt(data, this.encryptionKey!);
-      const msg = JSON.parse(decrypted) as ServerMessage;
-      this.debug(`transport recv: ${msg.type}`);
-      this.emit("message", msg);
+      msg = JSON.parse(decrypted) as ServerMessage;
     } catch (err) {
-      this.debug(`transport recv error: ${err}`);
-      // Ignore malformed or undecryptable messages
+      this.debug(`transport recv decode error: ${err}`);
+      return; // Ignore malformed or undecryptable messages
     }
+    this.debug(`transport recv: ${msg.type}`);
+    this.emit("message", msg);
   }
 
   private sendEncrypted(msg: ClientMessage): void {

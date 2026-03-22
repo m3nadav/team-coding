@@ -81,20 +81,23 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         break;
       case "stream_chunk":
         ui.showStreamChunk(event.text);
-        server.broadcast({ ...event, timestamp: Date.now() });
+        // Buffer so late-joining participants can catch up on the current response
+        server.bufferStreamEvent({ ...event, timestamp: Date.now() });
         break;
       case "tool_use":
         ui.showToolUse(event.tool, event.input);
-        server.broadcast({ ...event, timestamp: Date.now() });
+        server.bufferStreamEvent({ ...event, timestamp: Date.now() });
         break;
       case "tool_result":
         ui.showToolResult(event.tool, event.output);
-        server.broadcast({ ...event, timestamp: Date.now() });
+        server.bufferStreamEvent({ ...event, timestamp: Date.now() });
         break;
       case "turn_complete":
         debug(`turn_complete cost=$${event.cost.toFixed(4)} duration=${event.durationMs}ms`);
         totalCost += event.cost;
         ui.showTurnComplete(event.cost, event.durationMs);
+        // Clear the stream buffer now that the turn is done, then broadcast completion
+        server.clearStreamBuffer();
         server.broadcast({ ...event, timestamp: Date.now() });
         break;
       case "notice":
@@ -212,6 +215,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   server.on("prompt", (msg) => {
     debug(`prompt from ${msg.user}: "${msg.text.slice(0, 60)}${msg.text.length > 60 ? "…" : ""}"`);
     ui.showUserPrompt(msg.user, msg.text, "guest", "claude");
+    ui.showClaudeThinking();
     router.handlePrompt(msg);
   });
 

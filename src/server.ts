@@ -38,6 +38,10 @@ export class TeamCodingServer extends EventEmitter {
   private nextSeq = 1;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
 
+  // Buffer of stream events from the current Claude turn.
+  // Replayed to participants who join mid-response so they don't see a truncated stream.
+  private activeStreamBuffer: ServerMessage[] = [];
+
   // Legacy transport support (for P2P/relay)
   private transportParticipants = new Map<DuetTransport, string>(); // transport → participantId
 
@@ -124,6 +128,23 @@ export class TeamCodingServer extends EventEmitter {
     });
   }
 
+  /**
+   * Buffer a streaming event (stream_chunk / tool_use / tool_result) and broadcast it.
+   * Participants who join mid-turn will receive the buffered events to catch up.
+   * Call clearStreamBuffer() when a turn completes.
+   */
+  bufferStreamEvent(msg: ServerMessage): void {
+    this.activeStreamBuffer.push(msg);
+    this.broadcast(msg);
+  }
+
+  /**
+   * Clear the active stream buffer. Call this after a turn_complete event.
+   */
+  clearStreamBuffer(): void {
+    this.activeStreamBuffer = [];
+  }
+
   private handleConnection(ws: WebSocket): void {
     // Check capacity
     if (this.registry.size() >= this.options.maxParticipants) {
@@ -141,6 +162,13 @@ export class TeamCodingServer extends EventEmitter {
     // Mark alive on pong — heartbeat uses this to detect dead connections
     (ws as any)._tcAlive = true;
     ws.on("pong", () => { (ws as any)._tcAlive = true; });
+
+    // Handle WebSocket errors gracefully.
+    // An "error" event without a listener would become an uncaught exception and crash the host.
+    // Errors are always followed by a "close" event which handles participant cleanup.
+    ws.on("error", () => {
+      // Intentionally empty: cleanup is handled in the "close" handler below.
+    });
 
     ws.on("message", (data) => {
       try {
@@ -248,6 +276,14 @@ export class TeamCodingServer extends EventEmitter {
         participants: this.registry.toInfoList(),
         timestamp: Date.now(),
       });
+
+      // Replay any in-progress Claude stream so a late joiner doesn't see a truncated response.
+      // This runs synchronously before the next broadcast(), so there's no duplicate-chunk race.
+      if (this.activeStreamBuffer.length > 0) {
+        for (const bufferedMsg of this.activeStreamBuffer) {
+          this.send(ws, bufferedMsg);
+        }
+      }
 
       this.broadcastParticipantJoined(participant);
       this.emit("participant_joined", participant.name);

@@ -2,6 +2,34 @@
 
 ## Status: Post-Phase 7 Polish (continued)
 
+### 2026-03-22 — Fix streaming inconsistency: mid-stream joiners, silent drops, WS crash
+
+**Problems fixed**:
+
+1. **Mid-stream join misses earlier chunks** — When a participant joins while Claude is streaming, they were immediately added to the broadcast registry but had no way to receive chunks already sent. This caused partial or empty responses for late joiners.
+
+2. **Silent error swallowing in `handleWsMessage`** — The `try/catch` in `client.ts` wrapped both the decrypt step AND `this.emit("message", msg)`. If any listener (e.g. `ui.showStreamChunk`) threw an error, it was silently caught and the chunk was dropped entirely.
+
+3. **Missing `ws.on("error")` handler in server** — An unhandled WebSocket "error" event with no listener becomes an uncaught exception → `process.exit(1)` → entire host session crashes for all participants.
+
+4. **`showClaudeThinking()` not called for participant prompts** — Minor UX issue: the "Claude (thinking...)" indicator didn't show on the host UI when a participant (not the host) sent a `@claude` prompt.
+
+**Changes**:
+- `src/server.ts`:
+  - Added `activeStreamBuffer: ServerMessage[]` — accumulates stream events from the current Claude turn
+  - Added `bufferStreamEvent(msg)` — stores the event in the buffer AND broadcasts it; used by host.ts instead of `broadcast()` for `stream_chunk`, `tool_use`, `tool_result`
+  - Added `clearStreamBuffer()` — called on `turn_complete` to reset the buffer
+  - In `handleMessage()` join path: after sending `join_accepted`, replays the entire `activeStreamBuffer` to the new participant so they catch up on any in-progress response
+  - Added `ws.on("error", () => {})` handler in `handleConnection()` — prevents WebSocket error events from becoming uncaught exceptions that crash the host process
+- `src/client.ts`:
+  - Refactored `handleWsMessage()` and `handleTransportMessage()` to only wrap the decrypt/parse step in `try/catch`; `this.emit("message", msg)` now runs outside the catch so listener errors propagate normally instead of silently dropping chunks
+- `src/commands/host.ts`:
+  - Replaced `server.broadcast()` with `server.bufferStreamEvent()` for `stream_chunk`, `tool_use`, `tool_result` events
+  - On `turn_complete`: calls `server.clearStreamBuffer()` before `server.broadcast()` for the completion event
+  - Added `ui.showClaudeThinking()` to the `server.on("prompt")` handler so participant-originated prompts show the thinking indicator on the host UI
+
+**Result**: All participants now receive complete Claude responses regardless of when they joined the session. WebSocket errors no longer crash the host. Listener errors in message handlers are no longer silently swallowed.
+
 ### 2026-03-22 — Fix Cloudflare tunnel: wire wizard + auto-install binary
 
 **Problem 1 — Wizard disconnected**: `runWizard()` in `wizard.ts` was never imported or called from `src/index.ts`. Running `team-coding` with no arguments showed Commander's default help text instead of the interactive wizard, making the Cloudflare tunnel option (and all other wizard-based connection types) completely unreachable.
