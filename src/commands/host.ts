@@ -7,10 +7,7 @@ import { getLocalIP, formatConnectionInfo, startCloudflareTunnel, startLocaltunn
 import { SessionManager } from "../session.js";
 import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "./session-commands.js";
 import { parseSessionHistory, getProjectSessionDir } from "../history.js";
-import { createOffer } from "../peer.js";
-import { copyToClipboard } from "../clipboard.js";
 import { join } from "node:path";
-import * as readline from "node:readline";
 
 interface HostOptions {
   name: string;
@@ -138,6 +135,73 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   let moderationBuffer = "";
   let firstDiscussionMessage = true;
   const pendingModerationMessages: Array<{ sender: string; text: string; hops: number }> = [];
+  const DISCUSSION_SILENCE_TIMEOUT_MS = 10_000;
+  let discussionSilenceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // Round-robin turn ordering for discussions
+  let discussionTurnOrder: string[] = []; // names of participants with agent mode
+  let discussionTurnIndex = 0;
+
+  function stopDiscussion(reason: "ai_moderation" | "hop_limit" | "manual" | "silence"): void {
+    discussionMode = false;
+    isModerating = false;
+    moderationBuffer = "";
+    pendingModerationMessages.length = 0;
+    isHostAgentTurn = false;
+    agentResponseBuffer = "";
+    discussionTurnOrder = [];
+    if (discussionSilenceTimer) { clearTimeout(discussionSilenceTimer); discussionSilenceTimer = undefined; }
+    server.broadcast({
+      type: "agent_chain_stop",
+      reason,
+      seq: 0,
+      timestamp: Date.now(),
+    });
+    const reasonMsg = reason === "hop_limit"
+      ? "reached the maximum number of exchanges"
+      : reason === "ai_moderation"
+      ? "host's agent decided it reached its conclusion"
+      : reason === "silence"
+      ? "no agent responded for 10 seconds"
+      : "was manually ended";
+    ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
+  }
+
+  function resetSilenceTimer(): void {
+    if (discussionSilenceTimer) clearTimeout(discussionSilenceTimer);
+    if (!discussionMode) return;
+    discussionSilenceTimer = setTimeout(() => {
+      if (discussionMode) stopDiscussion("silence");
+    }, DISCUSSION_SILENCE_TIMEOUT_MS);
+  }
+
+  function buildTurnOrder(): string[] {
+    const order: string[] = [];
+    // Add host if they have agent mode
+    if (agentModeEnabled) order.push(options.name);
+    // Add remote participants with agent mode
+    for (const p of server.getRegistry().getRemote()) {
+      if (p.agentMode) order.push(p.name);
+    }
+    return order;
+  }
+
+  function broadcastNextTurn(): void {
+    if (!discussionMode || discussionTurnOrder.length === 0) return;
+    discussionTurnIndex = discussionTurnIndex % discussionTurnOrder.length;
+    const nextName = discussionTurnOrder[discussionTurnIndex];
+    server.broadcast({
+      type: "agent_discussion_turn",
+      speaker: nextName,
+      timestamp: Date.now(),
+    } as any);
+  }
+
+  function advanceTurn(): void {
+    discussionTurnIndex++;
+    broadcastNextTurn();
+    resetSilenceTimer();
+  }
 
   function processModerationMessage(entry: { sender: string; text: string; hops: number }): void {
     if (!localClaude || localClaude.isBusy()) {
@@ -181,14 +245,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
             isModerating = false;
             moderationBuffer = "";
             if (verdict.startsWith("STOP")) {
-              discussionMode = false;
-              server.broadcast({
-                type: "agent_chain_stop",
-                reason: "ai_moderation",
-                seq: 0, // seq assigned at broadcast level
-                timestamp: Date.now(),
-              });
-              ui.showSystem("[system] Agentic discussion ended — host's agent decided it reached its conclusion.");
+              stopDiscussion("ai_moderation");
             } else {
               // CONTINUE — process any queued messages
               if (pendingModerationMessages.length > 0) {
@@ -236,15 +293,11 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   }
 
   let connInfo: ConnectionInfo | undefined;
-  let peerCleanup: (() => void) | undefined;
 
-  // Determine connection mode
-  const useTunnel = options.tunnel || options.relay;
+  // Determine connection mode — always start WS server
+  const port = await server.start(options.port || 0);
 
-  if (useTunnel) {
-    // WebSocket mode (tunnel / relay / LAN)
-    const port = await server.start(options.port || 0);
-
+  if (options.tunnel || options.relay) {
     if (options.tunnel === "cloudflare") {
       try {
         ui.showSystem("Starting Cloudflare tunnel...");
@@ -276,51 +329,10 @@ export async function hostCommand(options: HostOptions): Promise<void> {
 
     ui.showWelcome(session.code, session.password, connInfo.displayUrl);
   } else {
-    // P2P mode (default)
-    ui.showSystem("Setting up P2P connection...");
-
-    try {
-      const offer = await createOffer(session.code);
-      peerCleanup = offer.cleanup;
-
-      const joinCmd = `npx team-coding join ${offer.offerCode} --password ${session.password}`;
-      ui.showWelcome(session.code, session.password, undefined, joinCmd);
-
-      if (copyToClipboard(joinCmd)) {
-        ui.showSystem("Copied join command to clipboard!");
-      }
-
-      ui.showSystem("Waiting for your partner's answer code...");
-
-      const answerCode = await promptForAnswerCode();
-
-      ui.showSystem("Connecting to partner...");
-      offer.acceptAnswer(answerCode);
-
-      const transport = await Promise.race([
-        offer.transport,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("P2P connection timed out (30s)")), 30000),
-        ),
-      ]);
-
-      server.attachTransport(transport);
-      ui.showSystem("P2P connection established!");
-    } catch (err) {
-      ui.showError(`P2P setup failed: ${err instanceof Error ? err.message : err}`);
-      ui.showSystem("Falling back to LAN mode...");
-
-      const port = await server.start(options.port || 0);
-      const localIP = getLocalIP();
-      connInfo = formatConnectionInfo({ mode: "lan", host: localIP, port });
-      ui.showSystem(`LAN server ready on ${connInfo.displayUrl}`);
-
-      const joinCmd = `npx team-coding join ${session.code} --password ${session.password} --url ${connInfo.displayUrl}`;
-      console.log("");
-      console.log(`  Send your partner this command to join:`);
-      console.log(`  ${joinCmd}`);
-      console.log("");
-    }
+    // Default: LAN WebSocket server
+    const localIP = getLocalIP();
+    connInfo = formatConnectionInfo({ mode: "lan", host: localIP, port });
+    ui.showWelcome(session.code, session.password, connInfo.displayUrl);
   }
 
   ui.setParticipants(server.getParticipantNames());
@@ -346,13 +358,17 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui.showUserPrompt(msg.user, msg.text, "guest", isAgentMsg ? "agent" as any : "chat");
     if (!isAgentMsg) router.addChatMessage(msg.user, msg.text);
 
-    // Discussion mode: route agent messages to moderation
-    if (discussionMode && isAgentMsg && localClaude) {
-      const entry = { sender: msg.user, text: msg.text, hops: msgHops };
-      if (!isModerating && !localClaude.isBusy()) {
-        processModerationMessage(entry);
-      } else {
-        pendingModerationMessages.push(entry);
+    // Discussion mode: route agent messages to moderation + advance turn
+    if (discussionMode && isAgentMsg) {
+      resetSilenceTimer();
+      advanceTurn(); // next speaker's turn
+      if (localClaude) {
+        const entry = { sender: msg.user, text: msg.text, hops: msgHops };
+        if (!isModerating && !localClaude.isBusy()) {
+          processModerationMessage(entry);
+        } else {
+          pendingModerationMessages.push(entry);
+        }
       }
       return;
     }
@@ -402,7 +418,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         resumeSessionId: claudeSessionId,
       });
       connInfo?.cleanup?.();
-      peerCleanup?.();
+
       await localClaude?.stop();
       await claude.stop();
       await server.stop();
@@ -474,6 +490,11 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       discussionTopic = topic;
       firstDiscussionMessage = true;
       pendingModerationMessages.length = 0;
+
+      // Build round-robin turn order from all participants with agent mode
+      discussionTurnOrder = buildTurnOrder();
+      discussionTurnIndex = 0;
+
       // Broadcast discussion start (also emits to host via server_message)
       server.broadcast({
         type: "agent_discussion_start",
@@ -486,29 +507,14 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       if (!localClaude) {
         ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
       }
-      // Host auto-seeds with their agent if enabled
-      if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && 1 <= maxAgentHops) {
-        currentIncomingHops = 0;
-        isHostAgentTurn = true;
-        agentResponseBuffer = "";
-        localClaude.sendPrompt(`You're in a collaborative coding session. Share your thoughts briefly on this topic: ${topic}`);
-      }
+
+      // Broadcast first turn and start silence timer
+      broadcastNextTurn();
+      resetSilenceTimer();
     },
     isDiscussionActive: () => discussionMode,
     onStopDiscussion: () => {
-      discussionMode = false;
-      isModerating = false;
-      moderationBuffer = "";
-      pendingModerationMessages.length = 0;
-      isHostAgentTurn = false;
-      agentResponseBuffer = "";
-      server.broadcast({
-        type: "agent_chain_stop",
-        reason: "manual",
-        seq: 0,
-        timestamp: Date.now(),
-      });
-      ui.showSystem("[system] Agentic discussion manually ended.");
+      stopDiscussion("manual");
     },
     hasActiveAgents: () => {
       // Check if host has agent mode on OR any remote participant has agentMode
@@ -737,33 +743,36 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         discussionTopic = disc.topic;
         firstDiscussionMessage = true;
         pendingModerationMessages.length = 0;
+        discussionTurnOrder = buildTurnOrder();
+        discussionTurnIndex = 0;
         ui.showSystem(`[system] Agentic discussion started by ${disc.initiator}: "${disc.topic}"`);
         if (!localClaude) {
           ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
         }
-        // Auto-seed host's agent if enabled
-        if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && 1 <= maxAgentHops) {
-          currentIncomingHops = 0;
-          isHostAgentTurn = true;
-          agentResponseBuffer = "";
-          localClaude.sendPrompt(`You're in a collaborative coding session. Share your thoughts briefly on this topic: ${disc.topic}`);
-        }
+        broadcastNextTurn();
+        resetSilenceTimer();
+      }
+    }
+    if (msg.type === "agent_discussion_turn") {
+      const turn = msg as any;
+      // If it's the host's turn and host has agent mode, auto-respond
+      if (turn.speaker === options.name && discussionMode && agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && !isModerating) {
+        currentIncomingHops = 0;
+        isHostAgentTurn = true;
+        agentResponseBuffer = "";
+        localClaude.sendPrompt(`You're in a collaborative coding session discussion about "${discussionTopic}". It's your turn — share your thoughts briefly.`);
       }
     }
     if (msg.type === "agent_chain_stop") {
-      const stop = msg as any;
+      // Clean up local state (don't re-broadcast — this IS the broadcast arriving back)
       discussionMode = false;
       isModerating = false;
       moderationBuffer = "";
       pendingModerationMessages.length = 0;
       isHostAgentTurn = false;
       agentResponseBuffer = "";
-      const reasonMsg = stop.reason === "hop_limit"
-        ? "reached the maximum number of exchanges"
-        : stop.reason === "ai_moderation"
-        ? "host's agent decided it reached its conclusion"
-        : "was manually ended";
-      ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
+      discussionTurnOrder = [];
+      if (discussionSilenceTimer) { clearTimeout(discussionSilenceTimer); discussionSilenceTimer = undefined; }
     }
   });
 
@@ -784,24 +793,10 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       resumeSessionId: claudeSessionId,
     });
     connInfo?.cleanup?.();
-    peerCleanup?.();
     await localClaude?.stop();
     await claude.stop();
     await server.stop();
     ui.close();
     process.exit(0);
-  });
-}
-
-function promptForAnswerCode(): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question("  Paste answer code: ", (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
   });
 }
