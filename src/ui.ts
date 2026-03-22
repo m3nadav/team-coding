@@ -144,6 +144,39 @@ export class TerminalUI {
       );
     }
 
+    // /agentic-discussion — always available (gated in session-commands by hasActiveAgents)
+    suggestions.push(
+      { trigger: "/agentic-discussion", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-discussio", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-discussi", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-discuss", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-discus", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-discu", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-disc", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-dis", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-di", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-d", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic-", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agentic", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/agenti", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      { trigger: "/ad", completion: "/agentic-discussion ", display: "/agentic-discussion <topic>" },
+      // /stop-discussion
+      { trigger: "/stop-discussion", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-discussio", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-discussi", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-discuss", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-discus", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-discu", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-disc", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-dis", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-di", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-d", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop-", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/stop", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/sto", completion: "/stop-discussion", display: "/stop-discussion" },
+      { trigger: "/sd", completion: "/stop-discussion", display: "/stop-discussion" },
+    );
+
     // /think and /private — only when local Claude is running
     if (this.localClaudeActive) {
       suggestions.push(

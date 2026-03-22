@@ -11,6 +11,7 @@ export interface WizardResult {
   relayUrl?: string;
   permissionMode?: "auto" | "interactive";
   resumeSession?: "continue" | "fresh";
+  withClaude?: boolean;
   // Join options
   sessionCode?: string;
   password?: string;
@@ -99,7 +100,14 @@ async function runHostWizard(name: string): Promise<WizardResult | null> {
 
   if (p.isCancel(permissionMode)) { p.cancel("Cancelled."); return null; }
 
-  return { mode: "host", name, connectionType, trustMode, relayUrl, permissionMode, resumeSession };
+  const withClaude = await p.confirm({
+    message: "Start a local Claude for agent mode & agentic discussions?",
+    initialValue: false,
+  }) as boolean;
+
+  if (p.isCancel(withClaude)) { p.cancel("Cancelled."); return null; }
+
+  return { mode: "host", name, connectionType, trustMode, relayUrl, permissionMode, resumeSession, withClaude };
 }
 
 async function runJoinWizard(name: string): Promise<WizardResult | null> {

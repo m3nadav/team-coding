@@ -432,6 +432,62 @@ describe("session commands", () => {
       const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
       expect(out).not.toContain("/agentic-discussion");
     });
+
+    it("blocks discussion when no agents are active", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({
+        onAgenticDiscussion,
+        isDiscussionActive: () => false,
+        hasActiveAgents: () => false,
+      });
+      handleSlashCommand("/ad some topic", ctx);
+      expect(onAgenticDiscussion).not.toHaveBeenCalled();
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("No participants have agent mode enabled");
+    });
+
+    it("allows discussion when agents are active", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({
+        onAgenticDiscussion,
+        isDiscussionActive: () => false,
+        hasActiveAgents: () => true,
+      });
+      handleSlashCommand("/ad some topic", ctx);
+      expect(onAgenticDiscussion).toHaveBeenCalledWith("some topic");
+    });
+  });
+
+  describe("/stop-discussion and /sd", () => {
+    it("/stop-discussion calls onStopDiscussion when discussion is active", () => {
+      const onStopDiscussion = vi.fn();
+      const ctx = createMockContext({
+        isDiscussionActive: () => true,
+        onStopDiscussion,
+      });
+      expect(handleSlashCommand("/stop-discussion", ctx)).toBe(true);
+      expect(onStopDiscussion).toHaveBeenCalled();
+    });
+
+    it("/sd is an alias for /stop-discussion", () => {
+      const onStopDiscussion = vi.fn();
+      const ctx = createMockContext({
+        isDiscussionActive: () => true,
+        onStopDiscussion,
+      });
+      expect(handleSlashCommand("/sd", ctx)).toBe(true);
+      expect(onStopDiscussion).toHaveBeenCalled();
+    });
+
+    it("shows message when no discussion is active", () => {
+      const ctx = createMockContext({
+        isDiscussionActive: () => false,
+        onStopDiscussion: vi.fn(),
+      });
+      expect(handleSlashCommand("/stop-discussion", ctx)).toBe(true);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("No agentic discussion is currently active");
+    });
   });
 });
 

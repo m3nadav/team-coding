@@ -495,6 +495,27 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       }
     },
     isDiscussionActive: () => discussionMode,
+    onStopDiscussion: () => {
+      discussionMode = false;
+      isModerating = false;
+      moderationBuffer = "";
+      pendingModerationMessages.length = 0;
+      isHostAgentTurn = false;
+      agentResponseBuffer = "";
+      server.broadcast({
+        type: "agent_chain_stop",
+        reason: "manual",
+        seq: 0,
+        timestamp: Date.now(),
+      });
+      ui.showSystem("[system] Agentic discussion manually ended.");
+    },
+    hasActiveAgents: () => {
+      // Check if host has agent mode on OR any remote participant has agentMode
+      if (agentModeEnabled) return true;
+      const registry = server.getRegistry();
+      return registry.getRemote().some((p) => p.agentMode);
+    },
     onReply: (message) => {
       if (!lastWhisperer) {
         ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");

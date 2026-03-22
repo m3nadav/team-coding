@@ -1,5 +1,7 @@
 import type { TerminalUI } from "../ui.js";
 
+export type StopDiscussionFn = () => void;
+
 export interface CommandContext {
   ui: TerminalUI;
   role: "host" | "participant";
@@ -20,6 +22,8 @@ export interface CommandContext {
   onReply?: (message: string) => void;
   onAgenticDiscussion?: (topic: string) => void;
   isDiscussionActive?: () => boolean;
+  onStopDiscussion?: StopDiscussionFn;
+  hasActiveAgents?: () => boolean;
 }
 
 /**
@@ -182,14 +186,28 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
         return true;
       }
       if (ctx.isDiscussionActive?.()) {
-        ctx.ui.showSystem("An agentic discussion is already in progress.");
+        ctx.ui.showSystem("An agentic discussion is already in progress. Use /stop-discussion to end it first.");
         return true;
       }
       if (!ctx.onAgenticDiscussion) {
         ctx.ui.showSystem("No discussion handler available.");
         return true;
       }
+      if (ctx.hasActiveAgents && !ctx.hasActiveAgents()) {
+        ctx.ui.showSystem("No participants have agent mode enabled. Enable /agent-mode first, then start a discussion.");
+        return true;
+      }
       ctx.onAgenticDiscussion(topic);
+      return true;
+    }
+
+    case "stop-discussion":
+    case "sd": {
+      if (!ctx.isDiscussionActive?.()) {
+        ctx.ui.showSystem("No agentic discussion is currently active.");
+        return true;
+      }
+      ctx.onStopDiscussion?.();
       return true;
     }
 
@@ -298,6 +316,7 @@ function showHelp(ctx: CommandContext): void {
   }
   if (ctx.onAgenticDiscussion) {
     ui.showSystem("  /agentic-discussion <topic>  — Start a moderated agent-to-agent discussion (/ad alias)");
+    ui.showSystem("  /stop-discussion            — Manually end the current agentic discussion (/sd alias)");
   }
   ui.showSystem("");
   ui.showSystem("Message prefixes:");

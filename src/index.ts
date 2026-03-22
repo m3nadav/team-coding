@@ -134,6 +134,7 @@ program.action(async () => {
       port: result.port ?? config.port ?? 0,
       continueSession: result.resumeSession === "continue",
       permissionMode: result.permissionMode ?? "auto",
+      withClaude: result.withClaude ?? false,
       debug: false,
     });
   } else if (result.mode === "join") {

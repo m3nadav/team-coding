@@ -350,6 +350,12 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       client.sendAgenticDiscussion(topic);
     },
     isDiscussionActive: () => discussionMode,
+    onStopDiscussion: () => {
+      // Participants can't broadcast chain_stop directly — but the host handles it.
+      // For now, participants see the UI message when they receive the chain_stop broadcast.
+      // Only the host can actually stop it. Show a message for participants.
+      ui.showSystem("Only the host can stop a discussion. Ask the host to use /stop-discussion.");
+    },
   };
 
   client.on("message", (msg) => {
