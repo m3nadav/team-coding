@@ -110,4 +110,41 @@ configCmd
     configPathCommand();
   });
 
-program.parse();
+// Default action: if no subcommand is given, launch the interactive wizard
+program.action(async () => {
+  const { runWizard } = await import("./wizard.js");
+  const result = await runWizard();
+  if (!result) process.exit(0);
+
+  const config = loadConfig();
+
+  if (result.mode === "host") {
+    const { hostCommand } = await import("./commands/host.js");
+    hostCommand({
+      name: result.name || config.name || process.env.USER || "host",
+      noApproval: result.trustMode === "trusted",
+      tunnel: result.connectionType === "cloudflare" ? "cloudflare"
+            : result.connectionType === "lan" || result.connectionType === "ssh" ? "lan"
+            : undefined,
+      relay: result.connectionType === "relay" ? result.relayUrl : undefined,
+      port: result.port ?? config.port ?? 0,
+      continueSession: result.resumeSession === "continue",
+      permissionMode: result.permissionMode ?? "auto",
+      debug: false,
+    });
+  } else if (result.mode === "join") {
+    const { joinCommand } = await import("./commands/join.js");
+    joinCommand(result.sessionCode!, {
+      name: result.name,
+      password: result.password,
+      url: result.url,
+      withClaude: false,
+      debug: false,
+    });
+  } else if (result.mode === "relay") {
+    const { startRelayServer } = await import("./relay-server.js");
+    startRelayServer(result.relayPort ?? 9877);
+  }
+});
+
+program.parseAsync();

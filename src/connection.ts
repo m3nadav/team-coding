@@ -1,5 +1,5 @@
 import { networkInterfaces } from "node:os";
-import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import localtunnel from "localtunnel";
 
 export function getLocalIP(): string {
@@ -34,46 +34,44 @@ export function formatConnectionInfo(opts: {
   return { url, displayUrl: url, mode: opts.mode };
 }
 
-// Cloudflare Quick Tunnel — user must have `cloudflared` installed
+// Cloudflare Quick Tunnel — uses the `cloudflared` npm package which auto-downloads the binary
 export async function startCloudflareTunnel(localPort: number): Promise<ConnectionInfo> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("cloudflared", ["tunnel", "--url", `http://localhost:${localPort}`], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+  const { Tunnel, bin, install } = await import("cloudflared");
 
-    let stderr = "";
-    const timeout = setTimeout(() => {
-      proc.kill();
-      reject(
-        new Error("cloudflared timed out. Install it with: brew install cloudflared"),
+  // Auto-install the cloudflared binary if not present
+  if (!existsSync(bin)) {
+    try {
+      await install(bin);
+    } catch (err) {
+      throw new Error(
+        `Failed to auto-install cloudflared binary: ${err instanceof Error ? err.message : err}\n` +
+        "You can also install it manually: brew install cloudflared",
       );
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    const t = Tunnel.quick(`http://localhost:${localPort}`);
+
+    const timeout = setTimeout(() => {
+      t.stop();
+      reject(new Error("cloudflared timed out after 30s"));
     }, 30000);
 
-    // cloudflared prints the URL to stderr
-    proc.stderr!.on("data", (data: Buffer) => {
-      stderr += data.toString();
-      const match = stderr.match(/https:\/\/[\w-]+\.trycloudflare\.com/);
-      if (match) {
-        clearTimeout(timeout);
-        const httpsUrl = match[0];
-        const wssUrl = httpsUrl.replace("https://", "wss://");
-        resolve({
-          url: wssUrl,
-          displayUrl: wssUrl,
-          mode: "tunnel",
-          cleanup: () => proc.kill(),
-        });
-      }
+    t.once("url", (httpsUrl: string) => {
+      clearTimeout(timeout);
+      const wssUrl = httpsUrl.replace("https://", "wss://");
+      resolve({
+        url: wssUrl,
+        displayUrl: wssUrl,
+        mode: "tunnel",
+        cleanup: () => t.stop(),
+      });
     });
 
-    proc.on("error", () => {
+    t.once("error", (err: Error) => {
       clearTimeout(timeout);
-      reject(
-        new Error(
-          "cloudflared not found. Install: brew install cloudflared\n" +
-            "Or use --url to connect directly (LAN, SSH tunnel, Tailscale, etc.)",
-        ),
-      );
+      reject(err);
     });
   });
 }

@@ -14,7 +14,7 @@ import * as readline from "node:readline";
 interface HostOptions {
   name: string;
   noApproval: boolean;
-  tunnel?: "localtunnel" | "cloudflare";
+  tunnel?: "localtunnel" | "cloudflare" | "lan";
   relay?: string;
   port: number;
   continueSession?: boolean;

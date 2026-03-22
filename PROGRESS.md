@@ -2,6 +2,28 @@
 
 ## Status: Post-Phase 7 Polish (continued)
 
+### 2026-03-22 — Fix Cloudflare tunnel: wire wizard + auto-install binary
+
+**Problem 1 — Wizard disconnected**: `runWizard()` in `wizard.ts` was never imported or called from `src/index.ts`. Running `team-coding` with no arguments showed Commander's default help text instead of the interactive wizard, making the Cloudflare tunnel option (and all other wizard-based connection types) completely unreachable.
+
+**Problem 2 — Silent LAN fallback**: The old `startCloudflareTunnel()` spawned the system `cloudflared` binary. If that binary wasn't installed, `proc.on("error")` fired and the catch block silently fell back to a local LAN IP — printing a `ws://192.168.x.x:PORT` join command that is useless for remote participants.
+
+**Changes**:
+- `src/index.ts`:
+  - Added `program.action()` as the default handler — when no subcommand is given, launches `runWizard()` and maps the result to `hostCommand`, `joinCommand`, or `startRelayServer`
+  - Changed `program.parse()` → `program.parseAsync()` to correctly await the async default action
+  - Fixed `lan`/`ssh` wizard connection types to pass `tunnel: "lan"` instead of incorrectly routing through `localtunnel`
+- `src/commands/host.ts`:
+  - Extended `HostOptions.tunnel` type to include `"lan"` so the wizard's LAN/SSH options start a local WS server without invoking any external tunnel provider
+- `src/connection.ts`:
+  - Replaced `spawn("cloudflared", ...)` with the [`cloudflared`](https://www.npmjs.com/package/cloudflared) npm package (`Tunnel.quick()` API)
+  - Binary is now auto-downloaded on first use — no manual install required
+  - If auto-install fails, throws a clear error with fallback hint instead of silently showing a local IP
+- `package.json` / `package-lock.json`: added `cloudflared` as a dependency
+
+**Result**: `team-coding` (no args) now launches the wizard; picking "Cloudflare tunnel" correctly starts a `trycloudflare.com` tunnel and prints a `wss://` join command that works over the internet.
+
+
 ### 2026-03-21 — Fix session summary: cost, session ID, and SIGINT handler
 
 - `src/commands/host.ts`:
