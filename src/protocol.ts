@@ -56,6 +56,12 @@ export interface ChatMessage extends BaseMessage {
   source?: "host" | "participant";
   sender?: SenderInfo;
   isAgentResponse?: boolean;
+  agentHops?: number;
+}
+
+export interface AgenticDiscussionStart extends BaseMessage {
+  type: "agentic_discussion_start";
+  topic: string;
 }
 
 export interface WhisperMessage extends BaseMessage {
@@ -86,6 +92,7 @@ export interface JoinAccepted extends BaseMessage {
   approvalMode: boolean;
   participantId: string;
   participants: ParticipantInfo[];
+  maxAgentHops?: number;
 }
 
 export interface JoinRejected extends BaseMessage {
@@ -164,6 +171,20 @@ export interface ChatReceived extends BaseMessage {
   source?: "host" | "participant";
   sender?: SenderInfo;
   isAgentResponse?: boolean;
+  agentHops?: number;
+}
+
+export interface AgentDiscussionStart extends BaseMessage {
+  type: "agent_discussion_start";
+  topic: string;
+  initiator: string;
+  seq: number;
+}
+
+export interface AgentChainStop extends BaseMessage {
+  type: "agent_chain_stop";
+  reason: "ai_moderation" | "hop_limit" | "manual";
+  seq: number;
 }
 
 export interface WhisperReceived extends BaseMessage {
@@ -211,7 +232,8 @@ export type ClientMessage =
   | ChatMessage
   | WhisperMessage
   | AgentModeToggle
-  | ContextModeChange;
+  | ContextModeChange
+  | AgenticDiscussionStart;
 
 export type ServerMessage =
   | JoinAccepted
@@ -232,7 +254,9 @@ export type ServerMessage =
   | WhisperReceived
   | HistoryReplayMessage
   | TypingIndicator
-  | AgentModeToggle;
+  | AgentModeToggle
+  | AgentDiscussionStart
+  | AgentChainStop;
 
 export type Message = ClientMessage | ServerMessage;
 
@@ -284,6 +308,14 @@ export function isAgentModeToggle(msg: unknown): msg is AgentModeToggle {
 
 export function isContextModeChange(msg: unknown): msg is ContextModeChange {
   return isObject(msg) && msg.type === "context_mode_change";
+}
+
+export function isAgenticDiscussionStart(msg: unknown): msg is AgenticDiscussionStart {
+  return isObject(msg) && msg.type === "agentic_discussion_start";
+}
+
+export function isAgentChainStop(msg: unknown): msg is AgentChainStop {
+  return isObject(msg) && msg.type === "agent_chain_stop";
 }
 
 function isObject(val: unknown): val is Record<string, unknown> {

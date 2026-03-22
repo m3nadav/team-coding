@@ -1,5 +1,76 @@
 # team-coding Progress
 
+## Status: Agentic Discussions
+
+### 2026-03-22 — Host agent mode + /agentic-discussion
+
+**Step 1 — Host `/agent-mode`:**
+
+The host previously had `localClaude` only for moderation but no `/agent-mode` command. Now the host can pass `--with-claude` and use `/agent-mode` exactly like participants: a confirmation prompt is shown, local Claude auto-responds to participant chat messages, and the host can disable it with `/agent-mode off`.
+
+Changes:
+- `src/commands/host.ts` — Import `LocalClaude`; add `withClaude?: boolean` and `maxAgentHops?: number` to `HostOptions`; create `localClaude` if `--with-claude`; full agent mode state machine (`agentModeEnabled`, `isHostAgentTurn`, `agentResponseBuffer`, `lastAgentResponseTime`); `onAgentModeToggle` wired in `cmdCtx`; `server.on("chat")` handler auto-forwards to `localClaude` when agent mode is active and the message is not an agent response; on `turn_complete`, host broadcasts agent response via `server.broadcast({type: "chat_received", isAgentResponse: true, ...})`; `localClaude` cleanup on SIGINT and `/leave`
+- `src/index.ts` — Added `--with-claude` and `--max-agent-hops <n>` options to `host` command
+
+**Step 2 — `/agentic-discussion`:**
+
+Two operating modes for agent-to-agent interaction:
+
+| Mode | Loop prevention | When active |
+|------|-----------------|-------------|
+| **Normal** | `isAgentResponse === true` blocks response | Default |
+| **Discussion** | `agentHops` counter + `agent_chain_stop` event | During `/agentic-discussion` |
+
+Flow:
+1. Any participant (or host) types `/agentic-discussion 'topic'`
+2. Server broadcasts `agent_discussion_start` to all — all clients set `discussionMode = true`
+3. Agents auto-seed by responding to the topic at `agentHops = 1`
+4. Each agent response carries `agentHops = incoming + 1`; agents respond to each other within the hop limit
+5. **Host's Claude** acts as moderator: when it receives each agent message, it's prompted with "Continue or Stop?". On "STOP" (or when hops reach `--max-agent-hops`), an `agent_chain_stop` is broadcast
+6. All clients clear `discussionMode`; agents go back to normal `isAgentResponse` blocking
+
+Protocol changes (`src/protocol.ts`):
+- Added `agentHops?: number` to `ChatMessage` and `ChatReceived`
+- Added `maxAgentHops?: number` to `JoinAccepted`
+- New client message: `AgenticDiscussionStart`
+- New server messages: `AgentDiscussionStart`, `AgentChainStop`
+- New type guards: `isAgenticDiscussionStart()`, `isAgentChainStop()`
+
+Server changes (`src/server.ts`):
+- Added `maxAgentHops` to `ServerOptions` (default 10); passed in `JoinAccepted`
+- Preserves `agentHops` in `chat_received` broadcast
+- Handles `agentic_discussion_start`: broadcasts `agent_discussion_start` to all
+- Enforces hop ceiling: when `agentHops >= maxAgentHops`, broadcasts `agent_chain_stop` with `reason: "hop_limit"`
+
+Client changes (`src/client.ts`):
+- `sendChat(text, isAgentResponse?, agentHops?)` — passes `agentHops` in discussion mode
+- `sendAgenticDiscussion(topic)` — sends `agentic_discussion_start`
+
+Join changes (`src/commands/join.ts`):
+- `discussionMode`, `currentIncomingHops`, `maxAgentHops` state
+- Agent guard: normal = `!isAgent`; discussion = `!isAgent || msgHops < maxAgentHops`
+- Outgoing hops: `client.sendChat(response, true, currentIncomingHops + 1)`
+- `agent_discussion_start` handler: sets `discussionMode`, auto-seeds if agent mode is on
+- `agent_chain_stop` handler: clears discussion state
+- `onAgenticDiscussion` / `isDiscussionActive` wired in `cmdCtx`
+
+Host changes (`src/commands/host.ts`):
+- Discussion mode state: `discussionMode`, `discussionTopic`, `isModerating`, `moderationBuffer`, `firstDiscussionMessage`, `pendingModerationMessages`
+- `processModerationMessage()`: sends moderation prompt to `localClaude` (initial turn includes system instructions + topic; subsequent turns ask "Continue or Stop?")
+- `isModerating` flag suppresses localClaude output from UI; response collected in `moderationBuffer`
+- On STOP verdict: broadcasts `agent_chain_stop`, clears discussion state
+- On CONTINUE: processes next pending message or waits
+- `agent_discussion_start` in `server_message` handler: detects when a participant starts a discussion
+- `agent_chain_stop` in `server_message` handler: clears all discussion state
+- `onAgenticDiscussion` / `isDiscussionActive` wired in `cmdCtx`
+
+Session commands (`src/commands/session-commands.ts`):
+- Added `onAgenticDiscussion` and `isDiscussionActive` to `CommandContext`
+- `/agentic-discussion <topic>` and `/ad <topic>` alias
+- Shows in `/help` when `onAgenticDiscussion` is wired
+
+Tests: 520 pass (12 new — `/agentic-discussion` command tests, protocol type guard tests)
+
 ## Status: Post-Phase 7 Polish (continued)
 
 ### 2026-03-22 — Fix streaming output erased by typing indicators and system messages

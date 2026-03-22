@@ -378,6 +378,61 @@ describe("session commands", () => {
       expect(calls).not.toContain("/think");
     });
   });
+
+  describe("/agentic-discussion and /ad", () => {
+    it("/agentic-discussion calls onAgenticDiscussion with the topic", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({ onAgenticDiscussion, isDiscussionActive: () => false });
+      expect(handleSlashCommand("/agentic-discussion should we refactor auth?", ctx)).toBe(true);
+      expect(onAgenticDiscussion).toHaveBeenCalledWith("should we refactor auth?");
+    });
+
+    it("/ad is an alias for /agentic-discussion", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({ onAgenticDiscussion, isDiscussionActive: () => false });
+      expect(handleSlashCommand("/ad use async/await or callbacks?", ctx)).toBe(true);
+      expect(onAgenticDiscussion).toHaveBeenCalledWith("use async/await or callbacks?");
+    });
+
+    it("strips surrounding quotes from topic", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({ onAgenticDiscussion, isDiscussionActive: () => false });
+      handleSlashCommand("/ad 'should we use TypeScript strict mode?'", ctx);
+      expect(onAgenticDiscussion).toHaveBeenCalledWith("should we use TypeScript strict mode?");
+    });
+
+    it("no topic shows usage", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({ onAgenticDiscussion, isDiscussionActive: () => false });
+      expect(handleSlashCommand("/agentic-discussion", ctx)).toBe(true);
+      expect(onAgenticDiscussion).not.toHaveBeenCalled();
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("Usage:");
+    });
+
+    it("shows error if discussion already active", () => {
+      const onAgenticDiscussion = vi.fn();
+      const ctx = createMockContext({ onAgenticDiscussion, isDiscussionActive: () => true });
+      handleSlashCommand("/ad some topic", ctx);
+      expect(onAgenticDiscussion).not.toHaveBeenCalled();
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("already in progress");
+    });
+
+    it("/help shows /agentic-discussion when onAgenticDiscussion is wired", () => {
+      const ctx = createMockContext({ onAgenticDiscussion: vi.fn() });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).toContain("/agentic-discussion");
+    });
+
+    it("/help hides /agentic-discussion when not wired", () => {
+      const ctx = createMockContext({ onAgenticDiscussion: undefined });
+      handleSlashCommand("/help", ctx);
+      const out = (ctx.ui.showSystem as any).mock.calls.map((c: any[]) => c[0]).join("\n");
+      expect(out).not.toContain("/agentic-discussion");
+    });
+  });
 });
 
 describe("resolveTypingTargets", () => {

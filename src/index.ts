@@ -22,6 +22,8 @@ program
   .option("-c, --continue", "resume most recent Claude Code session")
   .option("--resume <id>", "resume a specific Claude Code session by ID")
   .option("--permission-mode <mode>", "permission mode: auto (default) or interactive")
+  .option("--with-claude", "spawn a private local Claude for agent mode and agentic discussions")
+  .option("--max-agent-hops <n>", "maximum agent-to-agent exchange hops in a discussion (default: 10)", "10")
   .option("--debug", "print debug logs to stderr (ws events, message types, errors)")
   .action(async (options, cmd) => {
     console.log("  Starting session...");
@@ -39,6 +41,8 @@ program
       continueSession: options.continue || false,
       resumeSession: options.resume,
       permissionMode: options.permissionMode || config.permissionMode || "auto",
+      withClaude: options.withClaude ?? false,
+      maxAgentHops: parseInt(options.maxAgentHops, 10) || 10,
       debug: options.debug ?? false,
     });
   });

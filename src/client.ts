@@ -232,16 +232,26 @@ export class TeamCodingClient extends EventEmitter {
     });
   }
 
-  sendChat(text: string, isAgentResponse?: boolean): void {
+  sendChat(text: string, isAgentResponse?: boolean, agentHops?: number): void {
     this.sendEncrypted({
       type: "chat",
       id: nanoid(8),
       user: this.user!,
       text,
       isAgentResponse,
+      agentHops,
       timestamp: Date.now(),
     });
   }
+
+  sendAgenticDiscussion(topic: string): void {
+    this.sendEncrypted({
+      type: "agentic_discussion_start",
+      topic,
+      timestamp: Date.now(),
+    });
+  }
+
 
   sendWhisper(targets: string[], text: string): void {
     this.sendEncrypted({

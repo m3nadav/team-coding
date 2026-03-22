@@ -6,6 +6,8 @@ import {
   isPresenceMessage,
   isHistoryReplay,
   isTypingMessage,
+  isAgenticDiscussionStart,
+  isAgentChainStop,
   type PromptMessage,
   type StreamChunk,
 } from "../protocol.js";
@@ -84,5 +86,40 @@ describe("protocol type guards", () => {
       timestamp: Date.now(),
     };
     expect(isTypingMessage(msg)).toBe(false);
+  });
+
+  it("isAgenticDiscussionStart identifies agentic_discussion_start messages", () => {
+    const msg = { type: "agentic_discussion_start", topic: "should we refactor?", timestamp: Date.now() };
+    expect(isAgenticDiscussionStart(msg)).toBe(true);
+    expect(isPromptMessage(msg)).toBe(false);
+  });
+
+  it("isAgenticDiscussionStart rejects other types", () => {
+    expect(isAgenticDiscussionStart({ type: "chat", id: "x", user: "a", text: "t", timestamp: 0 })).toBe(false);
+    expect(isAgenticDiscussionStart(null)).toBe(false);
+  });
+
+  it("isAgentChainStop identifies agent_chain_stop messages", () => {
+    const msg = { type: "agent_chain_stop", reason: "hop_limit", seq: 5, timestamp: Date.now() };
+    expect(isAgentChainStop(msg)).toBe(true);
+    expect(isPromptMessage(msg)).toBe(false);
+  });
+
+  it("isAgentChainStop rejects other types", () => {
+    expect(isAgentChainStop({ type: "notice", message: "hi", timestamp: 0 })).toBe(false);
+    expect(isAgentChainStop(undefined)).toBe(false);
+  });
+
+  it("ChatMessage carries agentHops field", () => {
+    const msg = {
+      type: "chat",
+      id: "x",
+      user: "alice",
+      text: "hello",
+      isAgentResponse: true,
+      agentHops: 2,
+      timestamp: Date.now(),
+    };
+    expect((msg as any).agentHops).toBe(2);
   });
 });

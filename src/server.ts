@@ -10,6 +10,7 @@ import {
   isTypingMessage,
   isAgentModeToggle,
   isContextModeChange,
+  isAgenticDiscussionStart,
 } from "./protocol.js";
 import { deriveKey, encrypt, decrypt } from "./crypto.js";
 import { ParticipantRegistry } from "./participant.js";
@@ -22,9 +23,11 @@ export interface ServerOptions {
   sessionCode: string;
   approvalMode?: boolean;
   maxParticipants?: number;
+  maxAgentHops?: number;
 }
 
 const DEFAULT_MAX_PARTICIPANTS = 10;
+const DEFAULT_MAX_AGENT_HOPS = 10;
 
 // How often to send WebSocket ping frames (ms).
 // Must be well under typical tunnel/proxy idle timeouts (localtunnel = 120s).
@@ -50,6 +53,7 @@ export class TeamCodingServer extends EventEmitter {
     this.options = {
       approvalMode: true,
       maxParticipants: DEFAULT_MAX_PARTICIPANTS,
+      maxAgentHops: DEFAULT_MAX_AGENT_HOPS,
       ...options,
     };
     this.encryptionKey = deriveKey(options.password, options.sessionCode);
@@ -228,6 +232,7 @@ export class TeamCodingServer extends EventEmitter {
         approvalMode: this.options.approvalMode,
         participantId: participant.id,
         participants: this.registry.toInfoList(),
+        maxAgentHops: this.options.maxAgentHops,
         timestamp: Date.now(),
       });
 
@@ -274,6 +279,7 @@ export class TeamCodingServer extends EventEmitter {
         approvalMode: this.options.approvalMode,
         participantId: participant.id,
         participants: this.registry.toInfoList(),
+        maxAgentHops: this.options.maxAgentHops,
         timestamp: Date.now(),
       });
 
@@ -328,11 +334,21 @@ export class TeamCodingServer extends EventEmitter {
         source: sender.role,
         sender: senderInfo,
         isAgentResponse: msg.isAgentResponse,
+        agentHops: msg.agentHops,
         seq: this.nextSeq++,
         timestamp: Date.now(),
       };
       this.broadcast(outMsg);
       this.emit("chat", msg);
+      // Enforce hop limit: if this agent message hit the ceiling, stop the discussion
+      if (msg.isAgentResponse && msg.agentHops !== undefined && msg.agentHops >= this.options.maxAgentHops!) {
+        this.broadcast({
+          type: "agent_chain_stop",
+          reason: "hop_limit",
+          seq: this.nextSeq++,
+          timestamp: Date.now(),
+        });
+      }
       return;
     }
 
@@ -382,6 +398,18 @@ export class TeamCodingServer extends EventEmitter {
     if (isContextModeChange(msg)) {
       sender.contextMode = msg.mode;
       this.emit("context_mode_changed", sender, msg.mode);
+      return;
+    }
+
+    if (isAgenticDiscussionStart(msg)) {
+      const discussionMsg: ServerMessage = {
+        type: "agent_discussion_start",
+        topic: msg.topic,
+        initiator: sender.name,
+        seq: this.nextSeq++,
+        timestamp: Date.now(),
+      };
+      this.broadcast(discussionMsg);
       return;
     }
   }

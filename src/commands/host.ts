@@ -1,5 +1,6 @@
 import { TeamCodingServer } from "../server.js";
 import { ClaudeBridge, type PermissionMode } from "../claude.js";
+import { LocalClaude } from "../local-claude.js";
 import { PromptRouter } from "../router.js";
 import { TerminalUI } from "../ui.js";
 import { getLocalIP, formatConnectionInfo, startCloudflareTunnel, startLocaltunnel, type ConnectionInfo } from "../connection.js";
@@ -20,6 +21,8 @@ interface HostOptions {
   continueSession?: boolean;
   resumeSession?: string;
   permissionMode?: PermissionMode;
+  withClaude?: boolean;
+  maxAgentHops?: number;
   debug?: boolean;
 }
 
@@ -51,6 +54,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   const sessionManager = new SessionManager();
   const session = sessionManager.create(options.name);
   const approvalMode = !options.noApproval;
+  const maxAgentHops = options.maxAgentHops ?? 10;
 
   const ui = new TerminalUI({ userName: options.name, role: "host" });
 
@@ -60,6 +64,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     password: session.password,
     sessionCode: session.code,
     approvalMode,
+    maxAgentHops,
   });
   server.registerHost();
 
@@ -113,6 +118,122 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   await claude.start();
+
+  // --- Local Claude for host agent mode and discussion moderation ---
+  let localClaude: LocalClaude | undefined;
+  let localSessionId: string | undefined;
+
+  // Step 1: agent mode state
+  let agentModeEnabled = false;
+  let isHostAgentTurn = false;
+  let agentResponseBuffer = "";
+  let lastAgentResponseTime = 0;
+  let currentIncomingHops = 0;
+  const AGENT_RATE_LIMIT_MS = 5000;
+
+  // Step 2: discussion mode state
+  let discussionMode = false;
+  let discussionTopic = "";
+  let isModerating = false;
+  let moderationBuffer = "";
+  let firstDiscussionMessage = true;
+  const pendingModerationMessages: Array<{ sender: string; text: string; hops: number }> = [];
+
+  function processModerationMessage(entry: { sender: string; text: string; hops: number }): void {
+    if (!localClaude || localClaude.isBusy()) {
+      pendingModerationMessages.push(entry);
+      return;
+    }
+    isModerating = true;
+    moderationBuffer = "";
+    const prompt = firstDiscussionMessage
+      ? `You are moderating a multi-agent discussion in a collaborative coding session.\nTopic: "${discussionTopic}"\n\nEvaluate each agent message and decide if the discussion is still productive.\nRespond with exactly one word: CONTINUE or STOP.\n\nFirst agent message:\n[${entry.sender}]: ${entry.text}\n\nContinue or Stop?`
+      : `[${entry.sender}]: ${entry.text}\n\nContinue or Stop?`;
+    firstDiscussionMessage = false;
+    localClaude.sendPrompt(prompt);
+  }
+
+  if (options.withClaude) {
+    localClaude = new LocalClaude({ cwd: process.cwd() });
+    localClaude.on("event", (event: any) => {
+      switch (event.type) {
+        case "stream_chunk":
+          if (isModerating) {
+            moderationBuffer += event.text;
+          } else {
+            ui.showLocalClaudeChunk(event.text);
+            if (isHostAgentTurn) agentResponseBuffer += event.text;
+          }
+          break;
+        case "session_init":
+          if (!localSessionId) {
+            localSessionId = event.sessionId;
+            ui.showSystem("Local Claude ready.");
+          }
+          break;
+        case "tool_use":
+          if (!isModerating) ui.showSystem(`[local: ${event.tool}]`);
+          break;
+        case "turn_complete":
+          if (isModerating) {
+            // Check moderation verdict
+            const verdict = moderationBuffer.trim().toUpperCase();
+            isModerating = false;
+            moderationBuffer = "";
+            if (verdict.startsWith("STOP")) {
+              discussionMode = false;
+              server.broadcast({
+                type: "agent_chain_stop",
+                reason: "ai_moderation",
+                seq: 0, // seq assigned at broadcast level
+                timestamp: Date.now(),
+              });
+              ui.showSystem("[system] Agentic discussion ended — host's agent decided it reached its conclusion.");
+            } else {
+              // CONTINUE — process any queued messages
+              if (pendingModerationMessages.length > 0) {
+                processModerationMessage(pendingModerationMessages.shift()!);
+              }
+            }
+          } else {
+            ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
+            if (isHostAgentTurn) {
+              const response = agentResponseBuffer.trim();
+              const outgoingHops = currentIncomingHops + 1;
+              isHostAgentTurn = false;
+              agentResponseBuffer = "";
+              if (response) {
+                lastAgentResponseTime = Date.now();
+                ui.showUserPrompt(options.name, response, "host", "agent" as any);
+                server.broadcast({
+                  type: "chat_received",
+                  user: options.name,
+                  text: response,
+                  source: "host",
+                  isAgentResponse: true,
+                  agentHops: discussionMode ? outgoingHops : undefined,
+                  timestamp: Date.now(),
+                });
+              }
+            }
+          }
+          break;
+        case "error":
+          if (!isModerating) ui.showLocalClaudeError(event.message);
+          isHostAgentTurn = false;
+          isModerating = false;
+          agentResponseBuffer = "";
+          moderationBuffer = "";
+          break;
+      }
+    });
+    localClaude.start().then(() => {
+      ui.showLocalClaudeStatus(true);
+    }).catch((err: Error) => {
+      ui.showLocalClaudeError(`Failed to start local Claude: ${err.message}`);
+      localClaude = undefined;
+    });
+  }
 
   let connInfo: ConnectionInfo | undefined;
   let peerCleanup: (() => void) | undefined;
@@ -220,8 +341,35 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   });
 
   server.on("chat", (msg) => {
-    ui.showUserPrompt(msg.user, msg.text, "guest", "chat");
-    router.addChatMessage(msg.user, msg.text);
+    const isAgentMsg = !!(msg as any).isAgentResponse;
+    const msgHops: number = (msg as any).agentHops ?? 0;
+    ui.showUserPrompt(msg.user, msg.text, "guest", isAgentMsg ? "agent" as any : "chat");
+    if (!isAgentMsg) router.addChatMessage(msg.user, msg.text);
+
+    // Discussion mode: route agent messages to moderation
+    if (discussionMode && isAgentMsg && localClaude) {
+      const entry = { sender: msg.user, text: msg.text, hops: msgHops };
+      if (!isModerating && !localClaude.isBusy()) {
+        processModerationMessage(entry);
+      } else {
+        pendingModerationMessages.push(entry);
+      }
+      return;
+    }
+
+    // Agent mode: auto-respond to human messages (not agent responses)
+    if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && !isAgentMsg && !discussionMode) {
+      const now = Date.now();
+      if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
+        currentIncomingHops = 0;
+        isHostAgentTurn = true;
+        agentResponseBuffer = "";
+        localClaude.sendPrompt(`${msg.user}: ${msg.text}`);
+      } else {
+        const remaining = Math.ceil((AGENT_RATE_LIMIT_MS - (now - lastAgentResponseTime)) / 1000);
+        ui.showSystem(`[agent] Rate limit active — skipping response (${remaining}s remaining)`);
+      }
+    }
   });
 
   let messageCount = 0;
@@ -255,6 +403,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       });
       connInfo?.cleanup?.();
       peerCleanup?.();
+      await localClaude?.stop();
       await claude.stop();
       await server.stop();
       ui.close();
@@ -275,6 +424,77 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         ui.showSystem(`Could not disable agent mode for "${name}" — not found or not in agent mode.`);
       }
     },
+    onAgentModeToggle: options.withClaude
+      ? (enabled) => {
+          if (enabled) {
+            if (agentModeEnabled) {
+              ui.showSystem("Agent mode is already enabled. Use /agent-mode off to disable.");
+              return;
+            }
+            ui.showConfirmation(
+              "Enable agent mode? Your local Claude will auto-respond to all chat messages on your behalf.",
+              (confirmed) => {
+                if (!confirmed) {
+                  ui.showSystem("Agent mode not enabled.");
+                  return;
+                }
+                agentModeEnabled = true;
+                server.broadcast({
+                  type: "notice",
+                  message: `${options.name} enabled agent mode`,
+                  timestamp: Date.now(),
+                });
+                ui.showSystem("Agent mode enabled — local Claude will auto-respond to chat messages.");
+              },
+            );
+          } else {
+            if (!agentModeEnabled) {
+              ui.showSystem("Agent mode is not active.");
+              return;
+            }
+            agentModeEnabled = false;
+            isHostAgentTurn = false;
+            agentResponseBuffer = "";
+            server.broadcast({
+              type: "notice",
+              message: `${options.name} disabled agent mode`,
+              timestamp: Date.now(),
+            });
+            ui.showSystem("Agent mode disabled.");
+          }
+        }
+      : undefined,
+    isAgentMode: options.withClaude ? () => agentModeEnabled : undefined,
+    onAgenticDiscussion: (topic) => {
+      if (discussionMode) {
+        ui.showSystem("An agentic discussion is already in progress.");
+        return;
+      }
+      discussionMode = true;
+      discussionTopic = topic;
+      firstDiscussionMessage = true;
+      pendingModerationMessages.length = 0;
+      // Broadcast discussion start (also emits to host via server_message)
+      server.broadcast({
+        type: "agent_discussion_start",
+        topic,
+        initiator: options.name,
+        seq: 0,
+        timestamp: Date.now(),
+      });
+      ui.showSystem(`[system] Agentic discussion started: "${topic}"`);
+      if (!localClaude) {
+        ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
+      }
+      // Host auto-seeds with their agent if enabled
+      if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && 1 <= maxAgentHops) {
+        currentIncomingHops = 0;
+        isHostAgentTurn = true;
+        agentResponseBuffer = "";
+        localClaude.sendPrompt(`You're in a collaborative coding session. Share your thoughts briefly on this topic: ${topic}`);
+      }
+    },
+    isDiscussionActive: () => discussionMode,
     onReply: (message) => {
       if (!lastWhisperer) {
         ui.showSystem("No whisper to reply to yet — use @name <message> to start one.");
@@ -488,6 +708,42 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         ui.showWhisper("incoming", w.sender?.name, w.targets ?? [], w.text, w.sender?.role ?? "guest");
       }
     }
+    if (msg.type === "agent_discussion_start") {
+      const disc = msg as any;
+      // Only act if host didn't initiate it (host sets discussionMode directly in onAgenticDiscussion)
+      if (!discussionMode) {
+        discussionMode = true;
+        discussionTopic = disc.topic;
+        firstDiscussionMessage = true;
+        pendingModerationMessages.length = 0;
+        ui.showSystem(`[system] Agentic discussion started by ${disc.initiator}: "${disc.topic}"`);
+        if (!localClaude) {
+          ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
+        }
+        // Auto-seed host's agent if enabled
+        if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && 1 <= maxAgentHops) {
+          currentIncomingHops = 0;
+          isHostAgentTurn = true;
+          agentResponseBuffer = "";
+          localClaude.sendPrompt(`You're in a collaborative coding session. Share your thoughts briefly on this topic: ${disc.topic}`);
+        }
+      }
+    }
+    if (msg.type === "agent_chain_stop") {
+      const stop = msg as any;
+      discussionMode = false;
+      isModerating = false;
+      moderationBuffer = "";
+      pendingModerationMessages.length = 0;
+      isHostAgentTurn = false;
+      agentResponseBuffer = "";
+      const reasonMsg = stop.reason === "hop_limit"
+        ? "reached the maximum number of exchanges"
+        : stop.reason === "ai_moderation"
+        ? "host's agent decided it reached its conclusion"
+        : "was manually ended";
+      ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
+    }
   });
 
   process.on("SIGINT", async () => {
@@ -508,6 +764,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     });
     connInfo?.cleanup?.();
     peerCleanup?.();
+    await localClaude?.stop();
     await claude.stop();
     await server.stop();
     ui.close();

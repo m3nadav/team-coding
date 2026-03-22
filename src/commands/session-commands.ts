@@ -18,6 +18,8 @@ export interface CommandContext {
   isAgentMode?: () => boolean;
   getLocalSessionId?: () => string | undefined;
   onReply?: (message: string) => void;
+  onAgenticDiscussion?: (topic: string) => void;
+  isDiscussionActive?: () => boolean;
 }
 
 /**
@@ -172,6 +174,25 @@ export function handleSlashCommand(input: string, ctx: CommandContext): boolean 
       return true;
     }
 
+    case "agentic-discussion":
+    case "ad": {
+      const topic = parts.slice(1).join(" ").replace(/^['"]|['"]$/g, "").trim();
+      if (!topic) {
+        ctx.ui.showSystem(`Usage: /agentic-discussion <topic>  — Start a moderated agent-to-agent discussion`);
+        return true;
+      }
+      if (ctx.isDiscussionActive?.()) {
+        ctx.ui.showSystem("An agentic discussion is already in progress.");
+        return true;
+      }
+      if (!ctx.onAgenticDiscussion) {
+        ctx.ui.showSystem("No discussion handler available.");
+        return true;
+      }
+      ctx.onAgenticDiscussion(topic);
+      return true;
+    }
+
     default:
       ctx.ui.showSystem(`Unknown command: /${cmd}. Type /help for available commands.`);
       return true;
@@ -274,6 +295,9 @@ function showHelp(ctx: CommandContext): void {
     ui.showSystem("  /agent-mode       — Auto-forward group chat to your local Claude and post its responses");
     ui.showSystem("  /agent-mode off   — Disable agent mode");
     ui.showSystem("  /session          — Show local Claude session ID and resume status");
+  }
+  if (ctx.onAgenticDiscussion) {
+    ui.showSystem("  /agentic-discussion <topic>  — Start a moderated agent-to-agent discussion (/ad alias)");
   }
   ui.showSystem("");
   ui.showSystem("Message prefixes:");

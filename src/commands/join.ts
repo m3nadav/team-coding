@@ -159,6 +159,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
           if (isAgentTurn) {
             const response = agentResponseBuffer.trim();
+            const outgoingHops = currentIncomingHops + 1;
             isAgentTurn = false;
             agentResponseBuffer = "";
             if (response) {
@@ -168,7 +169,8 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
                 client.sendWhisper([agentTurnWhisperTarget], response);
                 agentTurnWhisperTarget = null;
               } else {
-                client.sendChat(response, true); // isAgentResponse = true
+                // In discussion mode, attach hop count so the chain can be tracked
+                client.sendChat(response, true, discussionMode ? outgoingHops : undefined);
               }
             }
           }
@@ -215,6 +217,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   let isAgentTurn = false;
   let agentResponseBuffer = "";
   let agentTurnWhisperTarget: string | null = null;
+
+  // Discussion mode state (set by /agentic-discussion)
+  let discussionMode = false;
+  let currentIncomingHops = 0; // agentHops of the message that triggered the current turn
+  const maxAgentHops: number = (result as any).maxAgentHops ?? 10;
 
   // Reply tracking — last participant who whispered us
   let lastWhisperer: string | undefined;
@@ -335,6 +342,14 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       ui.showWhisper("outgoing", options.name, [lastWhisperer], message, "guest");
       client.sendWhisper([lastWhisperer], message);
     },
+    onAgenticDiscussion: (topic) => {
+      if (discussionMode) {
+        ui.showSystem("An agentic discussion is already in progress.");
+        return;
+      }
+      client.sendAgenticDiscussion(topic);
+    },
+    isDiscussionActive: () => discussionMode,
   };
 
   client.on("message", (msg) => {
@@ -377,24 +392,28 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         // Skip own messages (already shown locally) — compare sender name, not source role
         if ((msg as any).sender?.name === options.name) break;
         const isAgent = !!(msg as any).isAgentResponse;
+        const msgHops: number = (msg as any).agentHops ?? 0;
         ui.showUserPrompt(msg.user, msg.text, msg.source === "host" ? "host" : "guest", isAgent ? "agent" : "chat");
 
-        // Agent mode: auto-forward to local Claude (loop prevention + rate limit)
-        if (
-          agentModeEnabled &&
-          localClaude &&
-          !localClaude.isBusy() &&
-          !isAgent
-        ) {
+        // Agent mode: auto-forward to local Claude
+        // Normal mode: respond to human messages only (!isAgent)
+        // Discussion mode: also respond to agent messages within hop limit
+        const shouldRespond = agentModeEnabled && localClaude && !localClaude.isBusy() && !isAgentTurn;
+        const canRespond = discussionMode
+          ? (!isAgent || msgHops < maxAgentHops)  // respond to humans and agents (within limit)
+          : !isAgent;                              // respond to humans only
+
+        if (shouldRespond && canRespond) {
           const now = Date.now();
           if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
             const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
             const fullPrompt = contextPrefix
               ? `${contextPrefix}[Latest message from ${msg.user}]\n${msg.text}`
               : `${msg.user}: ${msg.text}`;
+            currentIncomingHops = msgHops;
             isAgentTurn = true;
             agentResponseBuffer = "";
-            localClaude.sendPrompt(fullPrompt);
+            localClaude!.sendPrompt(fullPrompt);
           } else {
             const remaining = Math.ceil((AGENT_RATE_LIMIT_MS - (now - lastAgentResponseTime)) / 1000);
             ui.showSystem(`[agent] Rate limit active — skipping response (${remaining}s remaining)`);
@@ -470,6 +489,36 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           agentTurnWhisperTarget = null;
           ui.showSystem("Host has disabled your agent mode.");
         }
+        break;
+      }
+      case "agent_discussion_start": {
+        const disc = msg as any;
+        discussionMode = true;
+        ui.showSystem(`[system] Agentic discussion started by ${disc.initiator}: "${disc.topic}"`);
+        // Auto-seed the discussion if agent mode is on and Claude is available
+        if (agentModeEnabled && localClaude && !localClaude.isBusy() && !isAgentTurn && 1 <= maxAgentHops) {
+          currentIncomingHops = 0; // responding to hops=0 (discussion start), will send hops=1
+          isAgentTurn = true;
+          agentResponseBuffer = "";
+          const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
+          const seedPrompt = contextPrefix
+            ? `${contextPrefix}[Agentic discussion started]\nTopic: ${disc.topic}\n\nShare your thoughts on this topic briefly.`
+            : `You're in a collaborative coding session. Share your thoughts briefly on this topic: ${disc.topic}`;
+          localClaude.sendPrompt(seedPrompt);
+        }
+        break;
+      }
+      case "agent_chain_stop": {
+        const stop = msg as any;
+        discussionMode = false;
+        isAgentTurn = false;
+        agentResponseBuffer = "";
+        const reasonMsg = stop.reason === "hop_limit"
+          ? "reached the maximum number of exchanges"
+          : stop.reason === "ai_moderation"
+          ? "host's agent decided it reached its conclusion"
+          : "was manually ended";
+        ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
         break;
       }
       case "notice":
