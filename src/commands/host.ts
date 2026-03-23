@@ -8,6 +8,7 @@ import { SessionManager } from "../session.js";
 import { handleSlashCommand, parseWhisper, resolveTypingTargets, type CommandContext } from "./session-commands.js";
 import { parseSessionHistory, getProjectSessionDir } from "../history.js";
 import { join } from "node:path";
+import { buildAgentIdentityPrefix } from "../agent-identity.js";
 
 interface HostOptions {
   name: string;
@@ -119,6 +120,11 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   // --- Local Claude for host agent mode and discussion moderation ---
   let localClaude: LocalClaude | undefined;
   let localSessionId: string | undefined;
+
+  // Agent identity prefix
+  function getAgentIdentity(): string {
+    return buildAgentIdentityPrefix(options.name, server.getParticipantNames());
+  }
 
   // Step 1: agent mode state
   let agentModeEnabled = false;
@@ -251,11 +257,13 @@ export async function hostCommand(options: HostOptions): Promise<void> {
             isHostAgentTurn = false;
             agentResponseBuffer = "";
             if (response) {
-              // Check if host agent is dropping out of discussion
-              if (discussionMode && response.includes("[PASS]")) {
+              // Check if agent decided the message wasn't relevant (name-awareness filter)
+              if (response.includes("[SKIP]")) {
+                // Silently ignore — message wasn't meant for this agent
+              } else if (discussionMode && response.includes("[PASS]")) {
                 removeFromTurnOrder(options.name);
                 ui.showSystem("[discussion] Your agent has nothing more to add — dropping out.");
-              } else if (response) {
+              } else {
                 lastAgentResponseTime = Date.now();
                 ui.showUserPrompt(options.name, response, "host", "agent" as any);
                 server.broadcast({
@@ -371,7 +379,8 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         currentIncomingHops = 0;
         isHostAgentTurn = true;
         agentResponseBuffer = "";
-        localClaude.sendPrompt(`${msg.user}: ${msg.text}`);
+        const identity = getAgentIdentity();
+        localClaude.sendPrompt(`${identity}${msg.user}: ${msg.text}`);
       } else {
         const remaining = Math.ceil((AGENT_RATE_LIMIT_MS - (now - lastAgentResponseTime)) / 1000);
         ui.showSystem(`[agent] Rate limit active — skipping response (${remaining}s remaining)`);
@@ -753,8 +762,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         currentIncomingHops = 0;
         isHostAgentTurn = true;
         agentResponseBuffer = "";
+        const identity = getAgentIdentity();
         localClaude.sendPrompt(
-          `You're in a collaborative coding session discussion about "${discussionTopic}". ` +
+          `${identity}You're in a collaborative coding session discussion about "${discussionTopic}". ` +
           `It's your turn — share your thoughts briefly. ` +
           `If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`
         );

@@ -5,6 +5,7 @@ import { createAnswer } from "../peer.js";
 import { decodeSDP } from "../sdp-codec.js";
 import { copyToClipboard } from "../clipboard.js";
 import { LocalClaude } from "../local-claude.js";
+import { buildAgentIdentityPrefix } from "../agent-identity.js";
 
 interface JoinOptions {
   name: string;
@@ -163,8 +164,10 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             isAgentTurn = false;
             agentResponseBuffer = "";
             if (response) {
-              // Check if agent is dropping out of discussion
-              if (discussionMode && response.includes("[PASS]")) {
+              // Check if agent decided the message wasn't relevant (name-awareness filter)
+              if (response.includes("[SKIP]")) {
+                // Silently ignore — message wasn't meant for this agent
+              } else if (discussionMode && response.includes("[PASS]")) {
                 // Send PASS as chat so host can detect it and remove us from turn order
                 client.sendChat("[PASS]", true, 1);
                 isMyDiscussionTurn = false;
@@ -217,6 +220,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
   // Local context mode for /think — controls whether chat history is prepended
   let localContextMode: "full" | "prompt-only" = "full";
   const localChatHistory: Array<{ user: string; text: string }> = [];
+
+  // Agent identity prefix — gives the agent a name-based personality
+  function getAgentIdentity(): string {
+    return buildAgentIdentityPrefix(options.name, knownParticipants.map((p) => p.name));
+  }
 
   // Agent mode state
   let agentModeEnabled = false;
@@ -421,10 +429,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         if (shouldRespond && canRespond) {
           const now = Date.now();
           if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
+            const identity = getAgentIdentity();
             const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
             const fullPrompt = contextPrefix
-              ? `${contextPrefix}[Latest message from ${msg.user}]\n${msg.text}`
-              : `${msg.user}: ${msg.text}`;
+              ? `${identity}${contextPrefix}[Latest message from ${msg.user}]\n${msg.text}`
+              : `${identity}${msg.user}: ${msg.text}`;
             currentIncomingHops = msgHops;
             isAgentTurn = true;
             agentResponseBuffer = "";
@@ -453,10 +462,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         if (agentModeEnabled && localClaude && !localClaude.isBusy()) {
           const now = Date.now();
           if (now - lastAgentResponseTime >= AGENT_RATE_LIMIT_MS) {
+            const identity = getAgentIdentity();
             const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
             const fullPrompt = contextPrefix
-              ? `${contextPrefix}[Private whisper from ${w.sender?.name}]\n${w.text}`
-              : `${w.sender?.name} whispered to you: ${w.text}`;
+              ? `${identity}${contextPrefix}[Private whisper from ${w.sender?.name}]\n${w.text}`
+              : `${identity}${w.sender?.name} whispered to you: ${w.text}`;
             isAgentTurn = true;
             agentTurnWhisperTarget = w.sender?.name;
             agentResponseBuffer = "";
@@ -525,10 +535,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           isAgentTurn = true;
           agentResponseBuffer = "";
           const topic = turn.topic || "(unknown topic)";
+          const identity = getAgentIdentity();
           const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
           const seedPrompt = contextPrefix
-            ? `${contextPrefix}[Agentic discussion — it's your turn to speak]\nTopic: ${topic}\n\nShare your thoughts on this topic briefly. Be concise. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`
-            : `You're in a collaborative coding session discussion about: ${topic}\nIt's your turn — share your thoughts briefly. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`;
+            ? `${identity}${contextPrefix}[Agentic discussion — it's your turn to speak]\nTopic: ${topic}\n\nShare your thoughts on this topic briefly. Be concise. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`
+            : `${identity}You're in a collaborative coding session discussion about: ${topic}\nIt's your turn — share your thoughts briefly. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`;
           localClaude.sendPrompt(seedPrompt);
         } else if (isMine) {
           const reasons: string[] = [];
