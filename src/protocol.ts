@@ -183,7 +183,7 @@ export interface AgentDiscussionStart extends BaseMessage {
 
 export interface AgentChainStop extends BaseMessage {
   type: "agent_chain_stop";
-  reason: "ai_moderation" | "hop_limit" | "manual" | "silence";
+  reason: "hop_limit" | "manual" | "silence" | "all_dropped";
   seq: number;
 }
 
@@ -191,6 +191,12 @@ export interface AgentDiscussionTurn extends BaseMessage {
   type: "agent_discussion_turn";
   speaker: string; // name of the participant whose turn it is
   topic?: string;  // discussion topic for context
+}
+
+export interface AgentDiscussionDropout extends BaseMessage {
+  type: "agent_discussion_dropout";
+  name: string;         // who dropped out
+  remaining: string[];  // who's still in
 }
 
 export interface WhisperReceived extends BaseMessage {
@@ -263,7 +269,8 @@ export type ServerMessage =
   | AgentModeToggle
   | AgentDiscussionStart
   | AgentChainStop
-  | AgentDiscussionTurn;
+  | AgentDiscussionTurn
+  | AgentDiscussionDropout;
 
 export type Message = ClientMessage | ServerMessage;
 

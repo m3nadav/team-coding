@@ -131,38 +131,34 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   // Step 2: discussion mode state
   let discussionMode = false;
   let discussionTopic = "";
-  let isModerating = false;
-  let moderationBuffer = "";
-  let firstDiscussionMessage = true;
-  const pendingModerationMessages: Array<{ sender: string; text: string; hops: number }> = [];
   const DISCUSSION_SILENCE_TIMEOUT_MS = 10_000;
   let discussionSilenceTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Round-robin turn ordering for discussions
   let discussionTurnOrder: string[] = []; // names of participants with agent mode
   let discussionTurnIndex = 0;
+  let discussionMessageCount = 0; // total agent messages in this discussion
+  const maxDiscussionMessages = (maxAgentHops * 2); // 2 messages per "hop" equivalent
 
-  function stopDiscussion(reason: "ai_moderation" | "hop_limit" | "manual" | "silence"): void {
+  function stopDiscussion(reason: "hop_limit" | "manual" | "silence" | "all_dropped"): void {
     discussionMode = false;
-    isModerating = false;
-    moderationBuffer = "";
-    pendingModerationMessages.length = 0;
     isHostAgentTurn = false;
     agentResponseBuffer = "";
     discussionTurnOrder = [];
+    discussionMessageCount = 0;
     if (discussionSilenceTimer) { clearTimeout(discussionSilenceTimer); discussionSilenceTimer = undefined; }
     server.broadcast({
       type: "agent_chain_stop",
-      reason,
+      reason: reason === "all_dropped" ? "manual" : reason,
       seq: 0,
       timestamp: Date.now(),
     });
     const reasonMsg = reason === "hop_limit"
-      ? "reached the maximum number of exchanges"
-      : reason === "ai_moderation"
-      ? "host's agent decided it reached its conclusion"
+      ? `reached the maximum number of exchanges (${maxDiscussionMessages})`
       : reason === "silence"
       ? "no agent responded for 10 seconds"
+      : reason === "all_dropped"
+      ? "all agents dropped out of the discussion"
       : "was manually ended";
     ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
   }
@@ -186,6 +182,27 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     return order;
   }
 
+  function removeFromTurnOrder(name: string): void {
+    const idx = discussionTurnOrder.indexOf(name);
+    if (idx === -1) return;
+    discussionTurnOrder.splice(idx, 1);
+    // Adjust index so we don't skip anyone
+    if (discussionTurnIndex > idx) discussionTurnIndex--;
+    if (discussionTurnOrder.length === 0) {
+      stopDiscussion("all_dropped");
+      return;
+    }
+    // Wrap if needed
+    discussionTurnIndex = discussionTurnIndex % discussionTurnOrder.length;
+    ui.showSystem(`[discussion] ${name} dropped out. Remaining: ${discussionTurnOrder.join(", ")}`);
+    server.broadcast({
+      type: "agent_discussion_dropout",
+      name,
+      remaining: discussionTurnOrder,
+      timestamp: Date.now(),
+    } as any);
+  }
+
   function broadcastNextTurn(): void {
     if (!discussionMode || discussionTurnOrder.length === 0) return;
     discussionTurnIndex = discussionTurnIndex % discussionTurnOrder.length;
@@ -199,23 +216,15 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   }
 
   function advanceTurn(): void {
+    discussionMessageCount++;
+    // Check message limit
+    if (discussionMessageCount >= maxDiscussionMessages) {
+      stopDiscussion("hop_limit");
+      return;
+    }
     discussionTurnIndex++;
     broadcastNextTurn();
     resetSilenceTimer();
-  }
-
-  function processModerationMessage(entry: { sender: string; text: string; hops: number }): void {
-    if (!localClaude || localClaude.isBusy()) {
-      pendingModerationMessages.push(entry);
-      return;
-    }
-    isModerating = true;
-    moderationBuffer = "";
-    const prompt = firstDiscussionMessage
-      ? `You are moderating a multi-agent discussion in a collaborative coding session.\nTopic: "${discussionTopic}"\n\nEvaluate each agent message and decide if the discussion is still productive.\nRespond with exactly one word: CONTINUE or STOP.\n\nFirst agent message:\n[${entry.sender}]: ${entry.text}\n\nContinue or Stop?`
-      : `[${entry.sender}]: ${entry.text}\n\nContinue or Stop?`;
-    firstDiscussionMessage = false;
-    localClaude.sendPrompt(prompt);
   }
 
   if (options.withClaude) {
@@ -223,12 +232,8 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     localClaude.on("event", (event: any) => {
       switch (event.type) {
         case "stream_chunk":
-          if (isModerating) {
-            moderationBuffer += event.text;
-          } else {
-            ui.showLocalClaudeChunk(event.text);
-            if (isHostAgentTurn) agentResponseBuffer += event.text;
-          }
+          ui.showLocalClaudeChunk(event.text);
+          if (isHostAgentTurn) agentResponseBuffer += event.text;
           break;
         case "session_init":
           if (!localSessionId) {
@@ -237,30 +242,20 @@ export async function hostCommand(options: HostOptions): Promise<void> {
           }
           break;
         case "tool_use":
-          if (!isModerating) ui.showSystem(`[local: ${event.tool}]`);
+          ui.showSystem(`[local: ${event.tool}]`);
           break;
         case "turn_complete":
-          if (isModerating) {
-            // Check moderation verdict
-            const verdict = moderationBuffer.trim().toUpperCase();
-            isModerating = false;
-            moderationBuffer = "";
-            if (verdict.startsWith("STOP")) {
-              stopDiscussion("ai_moderation");
-            } else {
-              // CONTINUE — process any queued messages
-              if (pendingModerationMessages.length > 0) {
-                processModerationMessage(pendingModerationMessages.shift()!);
-              }
-            }
-          } else {
-            ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
-            if (isHostAgentTurn) {
-              const response = agentResponseBuffer.trim();
-              const outgoingHops = currentIncomingHops + 1;
-              isHostAgentTurn = false;
-              agentResponseBuffer = "";
-              if (response) {
+          ui.showLocalClaudeTurnComplete(event.cost, event.durationMs);
+          if (isHostAgentTurn) {
+            const response = agentResponseBuffer.trim();
+            isHostAgentTurn = false;
+            agentResponseBuffer = "";
+            if (response) {
+              // Check if host agent is dropping out of discussion
+              if (discussionMode && response.includes("[PASS]")) {
+                removeFromTurnOrder(options.name);
+                ui.showSystem("[discussion] Your agent has nothing more to add — dropping out.");
+              } else if (response) {
                 lastAgentResponseTime = Date.now();
                 ui.showUserPrompt(options.name, response, "host", "agent" as any);
                 server.broadcast({
@@ -269,7 +264,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
                   text: response,
                   source: "host",
                   isAgentResponse: true,
-                  agentHops: discussionMode ? outgoingHops : undefined,
+                  agentHops: discussionMode ? 1 : undefined,
                   timestamp: Date.now(),
                 });
               }
@@ -277,11 +272,9 @@ export async function hostCommand(options: HostOptions): Promise<void> {
           }
           break;
         case "error":
-          if (!isModerating) ui.showLocalClaudeError(event.message);
+          ui.showLocalClaudeError(event.message);
           isHostAgentTurn = false;
-          isModerating = false;
           agentResponseBuffer = "";
-          moderationBuffer = "";
           break;
       }
     });
@@ -359,18 +352,15 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     ui.showUserPrompt(msg.user, msg.text, "guest", isAgentMsg ? "agent" as any : "chat");
     if (!isAgentMsg) router.addChatMessage(msg.user, msg.text);
 
-    // Discussion mode: route agent messages to moderation + advance turn
+    // Discussion mode: handle agent messages — check for dropout, advance turn
     if (discussionMode && isAgentMsg) {
+      // Check if this agent is dropping out
+      if (msg.text.includes("[PASS]")) {
+        removeFromTurnOrder(msg.user);
+        return; // Don't advance turn — removeFromTurnOrder handles it
+      }
       resetSilenceTimer();
       advanceTurn(); // next speaker's turn
-      if (localClaude) {
-        const entry = { sender: msg.user, text: msg.text, hops: msgHops };
-        if (!isModerating && !localClaude.isBusy()) {
-          processModerationMessage(entry);
-        } else {
-          pendingModerationMessages.push(entry);
-        }
-      }
       return;
     }
 
@@ -489,8 +479,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       }
       discussionMode = true;
       discussionTopic = topic;
-      firstDiscussionMessage = true;
-      pendingModerationMessages.length = 0;
+      discussionMessageCount = 0;
 
       // Build round-robin turn order from all participants with agent mode
       discussionTurnOrder = buildTurnOrder();
@@ -508,10 +497,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       if (discussionTurnOrder.length === 0) {
         ui.showSystem("[system] Warning: no participants have agent mode enabled — discussion may time out.");
       } else {
-        ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")}`);
-        if (!localClaude) {
-          ui.showSystem("[system] Host has no local Claude — AI moderation disabled, using silence timeout only.");
-        }
+        ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")} (max ${maxDiscussionMessages} messages)`);
       }
 
       // Broadcast first turn and start silence timer
@@ -747,18 +733,14 @@ export async function hostCommand(options: HostOptions): Promise<void> {
       if (!discussionMode) {
         discussionMode = true;
         discussionTopic = disc.topic;
-        firstDiscussionMessage = true;
-        pendingModerationMessages.length = 0;
+        discussionMessageCount = 0;
         discussionTurnOrder = buildTurnOrder();
         discussionTurnIndex = 0;
         ui.showSystem(`[system] Agentic discussion started by ${disc.initiator}: "${disc.topic}"`);
         if (discussionTurnOrder.length === 0) {
           ui.showSystem("[system] Warning: no participants have agent mode enabled — discussion may time out.");
         } else {
-          ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")}`);
-          if (!localClaude) {
-            ui.showSystem("[system] Host has no local Claude — AI moderation disabled, using silence timeout only.");
-          }
+          ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")} (max ${maxDiscussionMessages} messages)`);
         }
         broadcastNextTurn();
         resetSilenceTimer();
@@ -767,22 +749,24 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     if (msg.type === "agent_discussion_turn") {
       const turn = msg as any;
       // If it's the host's turn and host has agent mode, auto-respond
-      if (turn.speaker === options.name && discussionMode && agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn && !isModerating) {
+      if (turn.speaker === options.name && discussionMode && agentModeEnabled && localClaude && !localClaude.isBusy() && !isHostAgentTurn) {
         currentIncomingHops = 0;
         isHostAgentTurn = true;
         agentResponseBuffer = "";
-        localClaude.sendPrompt(`You're in a collaborative coding session discussion about "${discussionTopic}". It's your turn — share your thoughts briefly.`);
+        localClaude.sendPrompt(
+          `You're in a collaborative coding session discussion about "${discussionTopic}". ` +
+          `It's your turn — share your thoughts briefly. ` +
+          `If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`
+        );
       }
     }
     if (msg.type === "agent_chain_stop") {
       // Clean up local state (don't re-broadcast — this IS the broadcast arriving back)
       discussionMode = false;
-      isModerating = false;
-      moderationBuffer = "";
-      pendingModerationMessages.length = 0;
       isHostAgentTurn = false;
       agentResponseBuffer = "";
       discussionTurnOrder = [];
+      discussionMessageCount = 0;
       if (discussionSilenceTimer) { clearTimeout(discussionSilenceTimer); discussionSilenceTimer = undefined; }
     }
   });

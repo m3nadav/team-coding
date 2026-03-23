@@ -163,14 +163,22 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
             isAgentTurn = false;
             agentResponseBuffer = "";
             if (response) {
-              lastAgentResponseTime = Date.now();
-              if (agentTurnWhisperTarget) {
-                ui.showWhisper("outgoing", options.name, [agentTurnWhisperTarget], response, "guest");
-                client.sendWhisper([agentTurnWhisperTarget], response);
-                agentTurnWhisperTarget = null;
+              // Check if agent is dropping out of discussion
+              if (discussionMode && response.includes("[PASS]")) {
+                // Send PASS as chat so host can detect it and remove us from turn order
+                client.sendChat("[PASS]", true, 1);
+                isMyDiscussionTurn = false;
+                ui.showSystem("[discussion] Your agent has nothing more to add — dropping out.");
               } else {
-                // In discussion mode, attach hop count so the chain can be tracked
-                client.sendChat(response, true, discussionMode ? outgoingHops : undefined);
+                lastAgentResponseTime = Date.now();
+                if (agentTurnWhisperTarget) {
+                  ui.showWhisper("outgoing", options.name, [agentTurnWhisperTarget], response, "guest");
+                  client.sendWhisper([agentTurnWhisperTarget], response);
+                  agentTurnWhisperTarget = null;
+                } else {
+                  // In discussion mode, attach hop count so the chain can be tracked
+                  client.sendChat(response, true, discussionMode ? outgoingHops : undefined);
+                }
               }
             }
           }
@@ -519,11 +527,10 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
           const topic = turn.topic || "(unknown topic)";
           const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
           const seedPrompt = contextPrefix
-            ? `${contextPrefix}[Agentic discussion — it's your turn to speak]\nTopic: ${topic}\n\nShare your thoughts on this topic briefly. Be concise.`
-            : `You're in a collaborative coding session discussion about: ${topic}\nIt's your turn — share your thoughts briefly.`;
+            ? `${contextPrefix}[Agentic discussion — it's your turn to speak]\nTopic: ${topic}\n\nShare your thoughts on this topic briefly. Be concise. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`
+            : `You're in a collaborative coding session discussion about: ${topic}\nIt's your turn — share your thoughts briefly. If you have nothing new to add, respond with exactly "[PASS]" and nothing else.`;
           localClaude.sendPrompt(seedPrompt);
         } else if (isMine) {
-          // Debug: explain why we didn't respond
           const reasons: string[] = [];
           if (!discussionMode) reasons.push("discussion not active");
           if (!agentModeEnabled) reasons.push("agent mode off");
@@ -536,6 +543,11 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         }
         break;
       }
+      case "agent_discussion_dropout": {
+        const dropout = msg as any;
+        ui.showSystem(`[discussion] ${dropout.name} dropped out. Remaining: ${(dropout.remaining || []).join(", ")}`);
+        break;
+      }
       case "agent_chain_stop": {
         const stop = msg as any;
         discussionMode = false;
@@ -544,10 +556,10 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         agentResponseBuffer = "";
         const reasonMsg = stop.reason === "hop_limit"
           ? "reached the maximum number of exchanges"
-          : stop.reason === "ai_moderation"
-          ? "host's agent decided it reached its conclusion"
           : stop.reason === "silence"
           ? "no agent responded for 10 seconds"
+          : stop.reason === "all_dropped"
+          ? "all agents dropped out of the discussion"
           : "was manually ended";
         ui.showSystem(`[system] Agentic discussion ended — ${reasonMsg}.`);
         break;
