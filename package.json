@@ -1,6 +1,6 @@
 {
   "name": "team-coding",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Multi-participant collaborative coding sessions — share a Claude Code session with your team",
   "type": "module",
   "main": "dist/index.js",
