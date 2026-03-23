@@ -1,6 +1,6 @@
 {
   "name": "team-coding",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Multi-participant collaborative coding sessions — share a Claude Code session with your team",
   "type": "module",
   "main": "dist/index.js",
@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "test:session": "bash scripts/test-session.sh",
     "prepublishOnly": "npm run build",
-    "publish": "scripts/publish.sh"
+    "publish:public": "scripts/publish.sh"
   },
   "keywords": [
     "claude",
