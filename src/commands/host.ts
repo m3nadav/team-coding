@@ -504,8 +504,13 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         timestamp: Date.now(),
       });
       ui.showSystem(`[system] Agentic discussion started: "${topic}"`);
-      if (!localClaude) {
-        ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
+      if (discussionTurnOrder.length === 0) {
+        ui.showSystem("[system] Warning: no participants have agent mode enabled — discussion may time out.");
+      } else {
+        ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")}`);
+        if (!localClaude) {
+          ui.showSystem("[system] Host has no local Claude — AI moderation disabled, using silence timeout only.");
+        }
       }
 
       // Broadcast first turn and start silence timer
@@ -746,8 +751,13 @@ export async function hostCommand(options: HostOptions): Promise<void> {
         discussionTurnOrder = buildTurnOrder();
         discussionTurnIndex = 0;
         ui.showSystem(`[system] Agentic discussion started by ${disc.initiator}: "${disc.topic}"`);
-        if (!localClaude) {
-          ui.showSystem("[system] No local Claude available — discussion will run on hop limit only.");
+        if (discussionTurnOrder.length === 0) {
+          ui.showSystem("[system] Warning: no participants have agent mode enabled — discussion may time out.");
+        } else {
+          ui.showSystem(`[system] Turn order: ${discussionTurnOrder.join(" → ")}`);
+          if (!localClaude) {
+            ui.showSystem("[system] Host has no local Claude — AI moderation disabled, using silence timeout only.");
+          }
         }
         broadcastNextTurn();
         resetSilenceTimer();
