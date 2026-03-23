@@ -507,17 +507,32 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
       }
       case "agent_discussion_turn": {
         const turn = msg as any;
-        isMyDiscussionTurn = (turn.speaker === options.name);
-        if (isMyDiscussionTurn && discussionMode && agentModeEnabled && localClaude && !localClaude.isBusy() && !isAgentTurn) {
-          // It's our turn — seed with topic or respond to last message
+        const isMine = turn.speaker === options.name;
+        isMyDiscussionTurn = isMine;
+        if (isMine) {
+          ui.showSystem(`[discussion] It's your turn to speak.`);
+        }
+        if (isMine && discussionMode && agentModeEnabled && localClaude && !localClaude.isBusy() && !isAgentTurn) {
           currentIncomingHops = 0;
           isAgentTurn = true;
           agentResponseBuffer = "";
+          const topic = turn.topic || "(unknown topic)";
           const contextPrefix = localContextMode === "full" ? buildLocalContextPrefix() : "";
           const seedPrompt = contextPrefix
-            ? `${contextPrefix}[Agentic discussion — it's your turn to speak]\nShare your thoughts briefly. Be concise.`
-            : `You're in a collaborative coding session discussion. It's your turn — share your thoughts briefly.`;
+            ? `${contextPrefix}[Agentic discussion — it's your turn to speak]\nTopic: ${topic}\n\nShare your thoughts on this topic briefly. Be concise.`
+            : `You're in a collaborative coding session discussion about: ${topic}\nIt's your turn — share your thoughts briefly.`;
           localClaude.sendPrompt(seedPrompt);
+        } else if (isMine) {
+          // Debug: explain why we didn't respond
+          const reasons: string[] = [];
+          if (!discussionMode) reasons.push("discussion not active");
+          if (!agentModeEnabled) reasons.push("agent mode off");
+          if (!localClaude) reasons.push("no local Claude");
+          else if (localClaude.isBusy()) reasons.push("local Claude busy");
+          if (isAgentTurn) reasons.push("already in agent turn");
+          if (reasons.length > 0) {
+            ui.showSystem(`[discussion] Skipped turn: ${reasons.join(", ")}`);
+          }
         }
         break;
       }

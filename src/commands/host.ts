@@ -193,6 +193,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     server.broadcast({
       type: "agent_discussion_turn",
       speaker: nextName,
+      topic: discussionTopic,
       timestamp: Date.now(),
     } as any);
   }

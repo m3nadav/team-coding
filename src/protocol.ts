@@ -190,6 +190,7 @@ export interface AgentChainStop extends BaseMessage {
 export interface AgentDiscussionTurn extends BaseMessage {
   type: "agent_discussion_turn";
   speaker: string; // name of the participant whose turn it is
+  topic?: string;  // discussion topic for context
 }
 
 export interface WhisperReceived extends BaseMessage {
