@@ -12,14 +12,14 @@ if [[ "$BUMP" != "patch" && "$BUMP" != "minor" && "$BUMP" != "major" ]]; then
   exit 1
 fi
 
+echo "==> Building..."
+npm run build
+
 echo "==> Running tests..."
 npm test
 
 echo "==> Bumping version ($BUMP)..."
 npm version "$BUMP"
-
-echo "==> Building..."
-npm run build
 
 echo "==> Publishing to npm (public)..."
 npm publish --access public
