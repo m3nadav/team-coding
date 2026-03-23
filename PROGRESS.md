@@ -1,5 +1,53 @@
 # team-coding Progress
 
+## Status: Discussion v2 — Round-Robin, Self-Dropout, Agent Identity
+
+### 2026-03-23 — Discussion overhaul + agent identity + publish script
+
+**Round-robin turn ordering:**
+- Agents no longer all respond at once. The host builds a turn order from all participants with agent mode enabled and broadcasts `agent_discussion_turn` messages naming the next speaker. Only the named participant's agent responds.
+- Turn order shown on start: `Turn order: Alice → Bob (max 20 messages)`
+
+**Message-count limit (replaces broken hop limit):**
+- Old hop-based limit never triggered because round-robin set hops=1 every time. Replaced with `discussionMessageCount` on the host, capped at `maxAgentHops × 2`.
+
+**Removed AI moderation:**
+- Host's single `localClaude` was shared between agent participation and moderation, causing moderation to never fire (Claude was always busy responding). Removed entirely — the new mechanisms cover the same need.
+
+**Agent self-dropout (`[PASS]`):**
+- Agents are instructed: "If you have nothing new to add, respond with exactly `[PASS]`."
+- Host detects `[PASS]`, removes agent from turn order, broadcasts `agent_discussion_dropout`.
+- Discussion ends automatically when all agents drop out (`reason: "all_dropped"`).
+
+**Silence timeout:** Increased from 10s to 60s.
+
+**No-tunnel default — drop P2P:**
+- Without `--tunnel`, host now starts a WS server on LAN (`0.0.0.0`) instead of the broken P2P offer/answer handshake.
+
+**Agent identity + name-awareness (`src/agent-identity.ts`):**
+- Every agent prompt is prefixed with identity: name, list of other participants, and a relevance filter.
+- If a message is clearly addressed to someone else (e.g. "Hi Alice"), the agent responds with `[SKIP]` which is silently discarded — prevents wrong agents from responding.
+- Discussion mode bypasses the filter (agents always participate on their turn).
+
+**Publish script (`scripts/publish.sh`):**
+- `./scripts/publish.sh [patch|minor|major]` — builds → tests → bumps version → publishes to npm → pushes commits + tags.
+
+**Protocol changes (`src/protocol.ts`):**
+- Added `AgentDiscussionTurn` (`agent_discussion_turn`) — speaker name + topic
+- Added `AgentDiscussionDropout` (`agent_discussion_dropout`) — who dropped out + remaining
+- Updated `AgentChainStop.reason` — removed `ai_moderation`, added `silence`, `all_dropped`
+- Both added to `ServerMessage` union
+
+**Four ways a discussion ends:**
+1. Message limit reached (`hop_limit`)
+2. All agents drop out (`all_dropped`)
+3. Silence timeout — no response for 60s (`silence`)
+4. Manual `/stop-discussion` (`manual`)
+
+Tests: 525 pass (unchanged)
+
+---
+
 ## Status: Agentic Discussions
 
 ### 2026-03-22 — Host agent mode + /agentic-discussion
