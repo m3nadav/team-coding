@@ -131,7 +131,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
   // Step 2: discussion mode state
   let discussionMode = false;
   let discussionTopic = "";
-  const DISCUSSION_SILENCE_TIMEOUT_MS = 10_000;
+  const DISCUSSION_SILENCE_TIMEOUT_MS = 60_000;
   let discussionSilenceTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Round-robin turn ordering for discussions
@@ -156,7 +156,7 @@ export async function hostCommand(options: HostOptions): Promise<void> {
     const reasonMsg = reason === "hop_limit"
       ? `reached the maximum number of exchanges (${maxDiscussionMessages})`
       : reason === "silence"
-      ? "no agent responded for 10 seconds"
+      ? "no agent responded for 60 seconds"
       : reason === "all_dropped"
       ? "all agents dropped out of the discussion"
       : "was manually ended";

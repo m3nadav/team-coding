@@ -557,7 +557,7 @@ export async function joinCommand(sessionCodeOrOffer: string, options: JoinOptio
         const reasonMsg = stop.reason === "hop_limit"
           ? "reached the maximum number of exchanges"
           : stop.reason === "silence"
-          ? "no agent responded for 10 seconds"
+          ? "no agent responded for 60 seconds"
           : stop.reason === "all_dropped"
           ? "all agents dropped out of the discussion"
           : "was manually ended";
